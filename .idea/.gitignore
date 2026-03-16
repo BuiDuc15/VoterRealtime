@@ -1,5 +1,7 @@
-# Default ignored files
+# Default JetBrains IDE ignores
 /shelf/
 /workspace.xml
-# Editor-based HTTP Client requests
 /httpRequests/
+/dataSources/
+/dataSources.local.xml
+
