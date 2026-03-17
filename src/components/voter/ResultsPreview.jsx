@@ -21,21 +21,27 @@ export default function ResultsPreview({ code, round, teams }) {
   const data = buildChartData(teams, counts);
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-4xl space-y-4 p-4 md:p-6">
+    <div className="mx-auto min-h-screen w-full max-w-5xl space-y-4 bg-slate-50 p-4 md:p-6">
       <AlreadyVoted />
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Tiêu chí hiện tại</p>
+        <h1 className="mt-1 text-2xl font-black text-slate-900">{round.name}</h1>
+        <p className="mt-2 text-sm text-slate-600">Bạn có thể theo dõi kết quả thay đổi trực tiếp theo từng đội.</p>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-500">Bieu do so luong</p>
-            <p className="text-sm text-slate-600">Tong: {total} phieu</p>
+            <p className="text-sm font-semibold text-slate-500">Biểu đồ số lượng</p>
+            <p className="text-sm text-slate-600">Tổng: {total} phiếu</p>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 16 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-12} textAnchor="end" height={40} />
                 <YAxis allowDecimals={false} />
-                <Tooltip />
+                <Tooltip formatter={(value) => [value, "Phiếu"]} />
                 <Bar dataKey="votes" radius={[8, 8, 0, 0]}>
                   {data.map((entry) => (
                     <Cell key={entry.id} fill={entry.color} />
@@ -46,17 +52,17 @@ export default function ResultsPreview({ code, round, teams }) {
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-500">Bieu do phan tram</p>
-            <p className="text-sm text-slate-600">Realtime</p>
+            <p className="text-sm font-semibold text-slate-500">Biểu đồ phần trăm</p>
+            <p className="text-sm text-slate-600">Thời gian thực</p>
           </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 16 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-12} textAnchor="end" height={40} />
                 <YAxis domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, "Ti le"]} />
+                <Tooltip formatter={(value) => [`${value}%`, "Tỷ lệ"]} />
                 <Bar dataKey="pct" radius={[8, 8, 0, 0]}>
                   {data.map((entry) => (
                     <Cell key={entry.id} fill={entry.color} />
@@ -68,8 +74,8 @@ export default function ResultsPreview({ code, round, teams }) {
         </div>
       </div>
 
-      <div className="space-y-3 rounded-2xl border bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-500">Chi tiet tung doi</p>
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm font-semibold text-slate-500">Chi tiết từng đội</p>
         {data.map((team) => (
           <div key={team.id}>
             <div className="mb-1 flex justify-between text-sm">

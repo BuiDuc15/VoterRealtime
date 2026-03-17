@@ -75,7 +75,7 @@ export default function VotePage() {
   }
 
   if (loading) return <LoadingSpinner />;
-  if (!session) return <WaitingScreen message="Session không tồn tại" />;
+  if (!session) return <WaitingScreen message="Phiên bình chọn không tồn tại" />;
 
   if (session.status === "waiting") return <WaitingScreen message="Sự kiện chưa bắt đầu" />;
   if (session.status === "ended") return <WaitingScreen message="Sự kiện đã kết thúc. Cảm ơn bạn!" />;
@@ -90,9 +90,9 @@ export default function VotePage() {
 
   if (hasVoted) {
     return (
-      <div>
+      <div className="min-h-screen bg-slate-50">
         {isOffline ? (
-          <div className="bg-yellow-100 px-3 py-2 text-center text-sm font-semibold text-yellow-700">
+          <div className="bg-amber-100 px-3 py-2 text-center text-sm font-semibold text-amber-700">
             Đang kết nối lại...
           </div>
         ) : null}
@@ -102,9 +102,9 @@ export default function VotePage() {
   }
 
   return (
-    <div>
+    <div className="min-h-screen bg-slate-50">
       {isOffline ? (
-        <div className="bg-yellow-100 px-3 py-2 text-center text-sm font-semibold text-yellow-700">
+        <div className="bg-amber-100 px-3 py-2 text-center text-sm font-semibold text-amber-700">
           Đang kết nối lại...
         </div>
       ) : null}

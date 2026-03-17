@@ -29,13 +29,18 @@ export default function DisplayPage() {
     return sumVoteCounts(rounds, session.teams || []);
   }, [rounds, session]);
 
-  const chartCounts = currentRound?.vote_counts || totalCounts;
+  const currentCounts = currentRound?.vote_counts || {};
   const chartRoundStatus = currentRound?.status || (session?.status === "ended" ? "closed" : "pending");
-  const chartTitlePrefix = currentRound ? "Tieu chi hien tai" : "Tong session";
+  const sessionStatusLabel =
+    session?.status === "ended"
+      ? "Đã kết thúc"
+      : session?.status === "active"
+        ? "Đang diễn ra"
+        : "Đang chờ bắt đầu";
 
   const currentData = useMemo(
-    () => buildChartData(session?.teams || [], currentRound?.vote_counts || {}),
-    [session?.teams, currentRound?.vote_counts]
+    () => (currentRound ? buildChartData(session?.teams || [], currentRound?.vote_counts || {}) : []),
+    [session?.teams, currentRound]
   );
 
   const totalData = useMemo(
@@ -71,18 +76,24 @@ export default function DisplayPage() {
   });
 
   if (loading || roundsLoading) return <LoadingSpinner label="Đang tải màn hình chiếu..." />;
-  if (!session) return <div className="p-8 text-center">Session không tồn tại</div>;
+  if (!session) return <div className="p-8 text-center">Phiên bình chọn không tồn tại</div>;
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-gray-900 text-white">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-slate-950 text-white">
       {isOffline ? (
         <div className="bg-yellow-600 px-4 py-2 text-center text-sm font-semibold">Đang kết nối lại...</div>
       ) : null}
 
-      <div className="flex items-center justify-between border-b border-gray-700 p-6">
-        <h1 className="text-3xl font-bold">{session.name}</h1>
-        <div className="text-xl text-gray-300">
-          {currentRound ? `Vòng: ${currentRound.name}` : session.status === "ended" ? "Tong ket session" : "Chờ bắt đầu..."}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/70 p-6 backdrop-blur">
+        <div>
+          <h1 className="text-3xl font-bold">{session.name}</h1>
+          <p className="mt-1 text-sm text-slate-300">Mã phiên: {code?.toUpperCase()}</p>
+        </div>
+        <div className="rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-1 text-sm font-semibold text-sky-200">
+          Trạng thái: {sessionStatusLabel}
+        </div>
+        <div className="text-xl text-slate-300">
+          {currentRound ? `Vòng hiện tại: ${currentRound.name}` : session.status === "ended" ? "Tổng kết phiên" : "Chờ bắt đầu..."}
         </div>
         {currentRound?.ends_at && currentRound.status === "open" ? (
           <CountdownTimer endsAt={currentRound.ends_at} className="text-white" />
@@ -94,62 +105,84 @@ export default function DisplayPage() {
       <div className="grid min-h-[60vh] flex-1 gap-4 p-6 lg:grid-cols-2">
         <LiveChart
           teams={session.teams}
-          voteCounts={chartCounts}
+          voteCounts={currentCounts}
           roundStatus={chartRoundStatus}
           metric="votes"
-          title={`${chartTitlePrefix} - So luong`}
+          title="Tiêu chí hiện tại - Số lượng"
         />
         <LiveChart
           teams={session.teams}
-          voteCounts={chartCounts}
+          voteCounts={currentCounts}
           roundStatus={chartRoundStatus}
           metric="pct"
-          title={`${chartTitlePrefix} - Phan tram`}
+          title="Tiêu chí hiện tại - Phần trăm"
+        />
+        <LiveChart
+          teams={session.teams}
+          voteCounts={totalCounts}
+          roundStatus={session.status === "ended" ? "closed" : "open"}
+          metric="votes"
+          title="Tổng toàn phiên - Số lượng"
+        />
+        <LiveChart
+          teams={session.teams}
+          voteCounts={totalCounts}
+          roundStatus={session.status === "ended" ? "closed" : "open"}
+          metric="pct"
+          title="Tổng toàn phiên - Phần trăm"
         />
       </div>
 
       <div className="grid gap-4 border-t border-slate-700 p-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Tieu chi hien tai</p>
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Chi tiết tiêu chí hiện tại</p>
           <div className="space-y-3">
-            {currentData.map((item) => (
-              <div key={item.id}>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="font-semibold">{item.name}</span>
-                  <span>
-                    {item.votes} | {item.pct}%
-                  </span>
+            {currentData.length ? (
+              currentData.map((item) => (
+                <div key={item.id}>
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span className="font-semibold">{item.name}</span>
+                    <span>
+                      {item.votes} | {item.pct}%
+                    </span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-700">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
+                    />
+                  </div>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-slate-400">Chưa có tiêu chí đang mở.</p>
+            )}
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Tong toan session</p>
+          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Tổng toàn phiên</p>
           <div className="space-y-3">
-            {totalData.map((item) => (
-              <div key={item.id}>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="font-semibold">{item.name}</span>
-                  <span>
-                    {item.votes} | {item.pct}%
-                  </span>
+            {totalData.length ? (
+              totalData.map((item) => (
+                <div key={item.id}>
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span className="font-semibold">{item.name}</span>
+                    <span>
+                      {item.votes} | {item.pct}%
+                    </span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-700">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
+                    />
+                  </div>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-slate-400">Chưa có dữ liệu bình chọn trong phiên.</p>
+            )}
           </div>
         </div>
       </div>
