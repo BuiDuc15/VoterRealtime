@@ -6,7 +6,8 @@ import { nextQuestion as goNextQuestion, nextRound as goNextRound } from "../../
 import { makeEndsAt } from "../../utils/timerHelpers";
 
 export default function LiveControls({ code, session, currentRound, currentQuestion, questions, canControl, onlineCount = 0 }) {
-  const { total: totalVotes } = useShardedVoteCounts(code, session?.current_round_id, currentQuestion?.id);
+  // Use session.current_question_id directly to avoid race condition where currentQuestion lags behind
+  const { total: totalVotes } = useShardedVoteCounts(code, session?.current_round_id, session?.current_question_id);
   const votePercent = onlineCount > 0 ? Math.min(100, Math.round((totalVotes / onlineCount) * 100)) : 0;
   const pendingQuestion = questions.find((q) => q.status === "pending");
 
