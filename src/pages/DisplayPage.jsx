@@ -1,36 +1,26 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { doc, updateDoc } from "firebase/firestore";
 import LiveChart from "../components/display/LiveChart";
 import WinnerAnnounce from "../components/display/WinnerAnnounce";
 import CountdownTimer from "../components/shared/CountdownTimer";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { db } from "../firebase";
-import { useAutoNext } from "../hooks/useAutoNext";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
-import { makeEndsAt } from "../utils/timerHelpers";
-import { buildChartData, sumVoteCounts } from "../utils/voteHelpers";
+import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
+import { buildChartData } from "../utils/voteHelpers";
 
 export default function DisplayPage() {
   const { code } = useParams();
   const { session, loading, isOffline } = useSession(code);
   const { rounds, loading: roundsLoading } = useRounds(code);
+  const currentQuestion = useCurrentQuestion(code, session);
+  const [lastClosedQuestion, setLastClosedQuestion] = useState(null);
 
   const currentRound = useMemo(
     () => rounds.find((round) => round.id === session?.current_round_id),
     [rounds, session?.current_round_id]
   );
 
-  const transitionMode = session?.transition_mode || "auto";
-
-  const totalCounts = useMemo(() => {
-    if (!session) return {};
-    return sumVoteCounts(rounds, session.teams || []);
-  }, [rounds, session]);
-
-  const currentCounts = currentRound?.vote_counts || {};
-  const chartRoundStatus = currentRound?.status || (session?.status === "ended" ? "closed" : "pending");
   const sessionStatusLabel =
     session?.status === "ended"
       ? "Đã kết thúc"
@@ -38,42 +28,23 @@ export default function DisplayPage() {
         ? "Đang diễn ra"
         : "Đang chờ bắt đầu";
 
-  const currentData = useMemo(
-    () => (currentRound ? buildChartData(session?.teams || [], currentRound?.vote_counts || {}) : []),
-    [session?.teams, currentRound]
+  const showRoundLabel = rounds.length >= 2 || session?.show_round_label;
+
+  useEffect(() => {
+    if (currentQuestion?.status === "closed") {
+      setLastClosedQuestion(currentQuestion);
+    }
+  }, [currentQuestion]);
+
+  const resultQuestion = currentQuestion?.status === "closed" ? currentQuestion : lastClosedQuestion;
+  const resultData = useMemo(
+    () => buildChartData(session?.teams || [], resultQuestion?.vote_counts || {}),
+    [resultQuestion, session?.teams]
   );
 
-  const totalData = useMemo(
-    () => buildChartData(session?.teams || [], totalCounts),
-    [session?.teams, totalCounts]
-  );
-
-  useAutoNext({
-    currentRound,
-    enabled: session?.status === "active" && transitionMode === "auto",
-    onNextRound: async () => {
-      if (!currentRound?.id) return;
-
-      await updateDoc(doc(db, "sessions", code, "rounds", currentRound.id), {
-        status: "closed",
-      });
-
-      const pending = rounds.filter((round) => round.status === "pending").sort((a, b) => a.order - b.order);
-      if (!pending.length) {
-        await updateDoc(doc(db, "sessions", code), {
-          status: "ended",
-          current_round_id: null,
-        });
-        return;
-      }
-
-      await updateDoc(doc(db, "sessions", code), { current_round_id: pending[0].id });
-      await updateDoc(doc(db, "sessions", code, "rounds", pending[0].id), {
-        status: "open",
-        ends_at: pending[0].duration ? makeEndsAt(pending[0].duration) : null,
-      });
-    },
-  });
+  const isWaiting = !session || session.status === "waiting" || (!currentQuestion && !resultQuestion);
+  const isVoting = currentQuestion?.status === "open";
+  const isResult = !isVoting && Boolean(resultQuestion);
 
   if (loading || roundsLoading) return <LoadingSpinner label="Đang tải màn hình chiếu..." />;
   if (!session) return <div className="p-8 text-center">Phiên bình chọn không tồn tại</div>;
@@ -88,108 +59,71 @@ export default function DisplayPage() {
         <div>
           <h1 className="text-3xl font-bold">{session.name}</h1>
           <p className="mt-1 text-sm text-slate-300">Mã phiên: {code?.toUpperCase()}</p>
+          {showRoundLabel && currentRound ? <p className="mt-1 text-sm text-slate-400">{currentRound.name}</p> : null}
         </div>
         <div className="rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-1 text-sm font-semibold text-sky-200">
           Trạng thái: {sessionStatusLabel}
         </div>
         <div className="text-xl text-slate-300">
-          {currentRound ? `Vòng hiện tại: ${currentRound.name}` : session.status === "ended" ? "Tổng kết phiên" : "Chờ bắt đầu..."}
+          {currentQuestion?.text || resultQuestion?.text || (session.status === "ended" ? "Tổng kết phiên" : "Chờ bắt đầu...")}
         </div>
-        {currentRound?.ends_at && currentRound.status === "open" ? (
-          <CountdownTimer endsAt={currentRound.ends_at} className="text-white" />
+        {currentQuestion?.ends_at && isVoting ? (
+          <CountdownTimer endsAt={currentQuestion.ends_at} className="text-white" />
         ) : (
           <div className="w-[70px]" />
         )}
       </div>
 
-      <div className="grid min-h-[60vh] flex-1 gap-4 p-6 lg:grid-cols-2">
-        <LiveChart
-          teams={session.teams}
-          voteCounts={currentCounts}
-          roundStatus={chartRoundStatus}
-          metric="votes"
-          title="Tiêu chí hiện tại - Số lượng"
-        />
-        <LiveChart
-          teams={session.teams}
-          voteCounts={currentCounts}
-          roundStatus={chartRoundStatus}
-          metric="pct"
-          title="Tiêu chí hiện tại - Phần trăm"
-        />
-        <LiveChart
-          teams={session.teams}
-          voteCounts={totalCounts}
-          roundStatus={session.status === "ended" ? "closed" : "open"}
-          metric="votes"
-          title="Tổng toàn phiên - Số lượng"
-        />
-        <LiveChart
-          teams={session.teams}
-          voteCounts={totalCounts}
-          roundStatus={session.status === "ended" ? "closed" : "open"}
-          metric="pct"
-          title="Tổng toàn phiên - Phần trăm"
-        />
-      </div>
-
-      <div className="grid gap-4 border-t border-slate-700 p-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Chi tiết tiêu chí hiện tại</p>
-          <div className="space-y-3">
-            {currentData.length ? (
-              currentData.map((item) => (
-                <div key={item.id}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span className="font-semibold">{item.name}</span>
-                    <span>
-                      {item.votes} | {item.pct}%
-                    </span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-400">Chưa có tiêu chí đang mở.</p>
-            )}
+      <div className="flex flex-1 items-center justify-center p-6">
+        {isWaiting ? (
+          <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-800/80 p-8 text-center">
+            <p className="text-3xl font-black">Sự kiện sắp bắt đầu</p>
+            <p className="mt-3 text-slate-300">Mời voter quét mã QR để vào bình chọn.</p>
           </div>
-        </div>
+        ) : null}
 
-        <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Tổng toàn phiên</p>
-          <div className="space-y-3">
-            {totalData.length ? (
-              totalData.map((item) => (
-                <div key={item.id}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span className="font-semibold">{item.name}</span>
-                    <span>
-                      {item.votes} | {item.pct}%
-                    </span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-700">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                    />
-                  </div>
+        {isVoting ? (
+          <div className="w-full max-w-5xl space-y-8 text-center">
+            <h2 className="text-5xl font-black leading-tight">{currentQuestion.text}</h2>
+            {currentQuestion.ends_at ? <CountdownTimer endsAt={currentQuestion.ends_at} className="text-8xl" /> : null}
+            <p className="text-xl text-slate-300">{currentQuestion.total_votes || 0} phiếu đã được ghi nhận</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {(session.teams || []).map((team) => (
+                <div key={team.id} className="rounded-full px-5 py-2 text-xl font-semibold text-white" style={{ backgroundColor: team.color }}>
+                  {team.name}
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-400">Chưa có dữ liệu bình chọn trong phiên.</p>
-            )}
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        ) : null}
 
-      {currentRound?.status === "closed" || session.status === "ended" ? (
-        <WinnerAnnounce teams={session.teams} voteCounts={session.status === "ended" ? totalCounts : currentRound.vote_counts || {}} />
-      ) : null}
+        {isResult ? (
+          <div className="w-full max-w-6xl space-y-4">
+            <LiveChart teams={session.teams} voteCounts={resultQuestion.vote_counts || {}} roundStatus="closed" title="Kết quả câu vừa đóng" />
+
+            <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Chi tiết kết quả</p>
+              <div className="space-y-3">
+                {resultData.map((item) => (
+                  <div key={item.id}>
+                    <div className="mb-1 flex justify-between text-sm">
+                      <span className="font-semibold">{item.name}</span>
+                      <span>
+                        {item.votes} | {item.pct}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-700">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${item.pct}%`, backgroundColor: item.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <WinnerAnnounce teams={session.teams} voteCounts={resultQuestion.vote_counts || {}} />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

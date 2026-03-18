@@ -10,7 +10,10 @@ export function useAutoNext({ currentRound, onNextRound, enabled = true }) {
 
     triggered.current = false;
     const diff = currentRound.ends_at.toMillis() - Date.now();
-    if (diff <= 0) return undefined;
+    if (diff <= 0) {
+      onNextRound();
+      return undefined;
+    }
 
     const timer = setTimeout(() => {
       if (!triggered.current) {

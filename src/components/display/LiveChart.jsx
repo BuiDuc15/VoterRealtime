@@ -1,9 +1,8 @@
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { buildChartData, getWinners } from "../../utils/voteHelpers";
 
-export default function LiveChart({ teams, voteCounts = {}, roundStatus, metric = "votes", title }) {
+export default function LiveChart({ teams, voteCounts = {}, roundStatus, title }) {
   const data = buildChartData(teams, voteCounts);
-  const isPct = metric === "pct";
   const totalVotes = data.reduce((sum, item) => sum + item.votes, 0);
 
   const winnerNames = (roundStatus === "closed" ? getWinners(data) : []).map((winner) => winner.name);
@@ -16,11 +15,11 @@ export default function LiveChart({ teams, voteCounts = {}, roundStatus, metric 
       </div>
 
       {data.length ? (
-        <ResponsiveContainer width="100%" height="90%">
-          <BarChart data={data} margin={{ top: 24, right: 20, left: 4, bottom: 18 }}>
-            <XAxis dataKey="name" tick={{ fill: "#e2e8f0", fontSize: 14, fontWeight: 700 }} interval={0} />
-            <YAxis hide domain={isPct ? [0, 100] : undefined} />
-            <Bar dataKey={metric} radius={[10, 10, 0, 0]} isAnimationActive animationDuration={350}>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={data} margin={{ top: 18, right: 12, left: 0, bottom: 12 }}>
+            <XAxis dataKey="name" tick={{ fill: "#e2e8f0", fontSize: 12, fontWeight: 700 }} interval={0} />
+            <YAxis hide allowDecimals={false} />
+            <Bar dataKey="votes" radius={[8, 8, 0, 0]} isAnimationActive animationDuration={320}>
               {data.map((entry) => (
                 <Cell
                   key={entry.id}
@@ -32,8 +31,8 @@ export default function LiveChart({ teams, voteCounts = {}, roundStatus, metric 
                 content={({ x, y, width, value, index }) => {
                   const entry = data[index];
                   return (
-                    <text x={x + width / 2} y={y - 10} textAnchor="middle" fill="#f8fafc" fontSize={14}>
-                      {isPct ? `${value}%` : `${value} phiếu`} | {entry.pct}%
+                    <text x={x + width / 2} y={y - 8} textAnchor="middle" fill="#f8fafc" fontSize={12}>
+                      {value} phiếu ({entry.pct}%)
                     </text>
                   );
                 }}
@@ -42,7 +41,7 @@ export default function LiveChart({ teams, voteCounts = {}, roundStatus, metric 
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        <div className="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-600 text-slate-400">
+        <div className="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-600 text-sm text-slate-400">
           Chưa có dữ liệu đội thi.
         </div>
       )}

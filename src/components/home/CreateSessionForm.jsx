@@ -4,7 +4,6 @@ import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../firebase";
 import { generateUniqueCode } from "../../utils/sessionCode";
-import { createZeroCounts } from "../../utils/voteHelpers";
 
 const PRESET_COLORS = ["#EF4444", "#F97316", "#EAB308", "#22C55E", "#14B8A6", "#3B82F6", "#8B5CF6", "#EC4899"];
 
@@ -13,9 +12,6 @@ export default function CreateSessionForm() {
 
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [timerMode, setTimerMode] = useState("per_round");
-  const [transitionMode, setTransitionMode] = useState("auto");
-  const [sessionMinutes, setSessionMinutes] = useState(60);
 
   const [teamName, setTeamName] = useState("");
   const [teamColor, setTeamColor] = useState(PRESET_COLORS[0]);
@@ -28,9 +24,8 @@ export default function CreateSessionForm() {
     if (!name.trim()) return false;
     if (password.length < 4) return false;
     if (teams.length < 2) return false;
-    if (timerMode === "session" && (!sessionMinutes || Number(sessionMinutes) <= 0)) return false;
     return true;
-  }, [name, password, teams.length, timerMode, sessionMinutes]);
+  }, [name, password, teams.length]);
 
   function addTeam() {
     if (!teamName.trim()) return;
@@ -41,6 +36,7 @@ export default function CreateSessionForm() {
         id: uuidv4(),
         name: teamName.trim(),
         color: teamColor,
+        order: prev.length,
       },
     ]);
     setTeamName("");
@@ -64,14 +60,11 @@ export default function CreateSessionForm() {
         name: name.trim(),
         admin_password: btoa(password),
         status: "waiting",
-        timer_mode: timerMode,
-        transition_mode: transitionMode,
-        session_duration: timerMode === "session" ? Number(sessionMinutes) * 60 : null,
-        session_ends_at: null,
+        show_round_label: false,
+        session_version: 1,
         current_round_id: null,
+        current_question_id: null,
         teams,
-        chart_total_counts: createZeroCounts(teams),
-        chart_total_votes: 0,
         created_at: serverTimestamp(),
       });
 
@@ -150,54 +143,8 @@ export default function CreateSessionForm() {
         />
       </div>
 
-      <div className="space-y-2 rounded-xl border p-3">
-        <p className="font-semibold">Chế độ thời gian</p>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={timerMode === "per_round"}
-            onChange={() => setTimerMode("per_round")}
-          />
-          Thời gian từng vòng
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={timerMode === "session"}
-            onChange={() => setTimerMode("session")}
-          />
-          Thời gian toàn bộ session
-        </label>
-        {timerMode === "session" ? (
-          <input
-            type="number"
-            min="1"
-            value={sessionMinutes}
-            onChange={(event) => setSessionMinutes(event.target.value)}
-            className="h-12 w-full rounded-lg border px-3"
-            placeholder="Số phút"
-          />
-        ) : null}
-      </div>
-
-      <div className="space-y-2 rounded-xl border p-3">
-        <p className="font-semibold">Chế độ chuyển vòng</p>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={transitionMode === "manual"}
-            onChange={() => setTransitionMode("manual")}
-          />
-          Admin thao tác tay (Next round)
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={transitionMode === "auto"}
-            onChange={() => setTransitionMode("auto")}
-          />
-          Tự động chuyển vòng khi hết thời gian
-        </label>
+      <div className="rounded-xl border p-3 text-sm text-slate-600">
+        Thời gian mặc định mỗi vòng sẽ được cài đặt tại màn quản trị sau khi tạo phiên.
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -207,7 +154,7 @@ export default function CreateSessionForm() {
         disabled={!canSubmit || loading}
         className="h-12 w-full rounded-lg bg-blue-600 text-white disabled:bg-gray-400"
       >
-        {loading ? "Đang tạo session..." : "Tạo session"}
+        {loading ? "Đang tạo phiên..." : "Tạo phiên"}
       </button>
     </form>
   );

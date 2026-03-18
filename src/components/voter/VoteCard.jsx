@@ -1,14 +1,14 @@
 import { useState } from "react";
 import CountdownTimer from "../shared/CountdownTimer";
 
-export default function VoteCard({ round, teams, onSubmit }) {
+export default function VoteCard({ question, teams, showRoundLabel, roundName, onSubmit }) {
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function toggle(teamId) {
     setError("");
-    if (round.vote_mode === "single") {
+    if (question.vote_mode === "single") {
       setSelected((prev) => (prev[0] === teamId ? [] : [teamId]));
       return;
     }
@@ -32,28 +32,29 @@ export default function VoteCard({ round, teams, onSubmit }) {
   }
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-4xl space-y-5 p-4 pb-24 md:p-6 md:pb-28">
-      <div className="rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-600 via-blue-600 to-sky-500 p-5 text-white shadow-lg shadow-blue-900/25">
+    <div className="relative z-10 mx-auto min-h-screen w-full max-w-4xl space-y-5 p-4 pb-24 md:p-6 md:pb-28">
+      <div className="rounded-3xl border border-white/25 bg-gradient-to-br from-indigo-500/95 via-sky-500/95 to-cyan-400/95 p-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.35)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-100">Bình chọn trực tiếp</p>
-            <h1 className="mt-2 text-2xl font-black md:text-3xl">{round.name}</h1>
+            {showRoundLabel ? <p className="mt-1 text-xs text-indigo-100">{roundName}</p> : null}
+            <h1 className="mt-2 text-2xl font-black md:text-3xl">{question.text}</h1>
             <p className="mt-2 text-sm text-indigo-100">
-              {round.vote_mode === "single"
+              {question.vote_mode === "single"
                 ? "Mỗi người chỉ chọn 1 đội trong tiêu chí này."
                 : "Bạn có thể chọn nhiều đội trong tiêu chí này."}
             </p>
           </div>
-          {round.ends_at ? (
+          {question.ends_at ? (
             <div className="rounded-xl bg-white/20 px-4 py-2 text-center">
               <p className="text-xs font-medium uppercase tracking-wide text-indigo-100">Thời gian còn lại</p>
-              <CountdownTimer endsAt={round.ends_at} className="text-white" />
+              <CountdownTimer endsAt={question.ends_at} className="text-white" />
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+      <div className="rounded-3xl border border-white/20 bg-white/95 p-4 shadow-xl md:p-5">
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-600">Danh sách đội tham gia</p>
           <p className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
@@ -70,7 +71,7 @@ export default function VoteCard({ round, teams, onSubmit }) {
                 type="button"
                 onClick={() => toggle(team.id)}
                 className={`min-h-[116px] rounded-2xl border-2 px-4 py-3 text-left text-white transition ${
-                  active ? "scale-[1.01] border-white/80 shadow-lg ring-2 ring-offset-2" : "border-transparent"
+                  active ? "scale-[1.01] border-white/80 shadow-lg ring-2 ring-offset-2" : "border-transparent opacity-90"
                 }`}
                 style={{ backgroundColor: team.color, ringColor: team.color }}
               >
@@ -91,12 +92,12 @@ export default function VoteCard({ round, teams, onSubmit }) {
 
       {error ? <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p> : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur md:left-auto md:right-auto md:w-full md:max-w-4xl md:rounded-t-2xl">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/20 bg-slate-950/70 p-3 shadow-[0_-10px_30px_rgba(15,23,42,0.25)] backdrop-blur md:left-auto md:right-auto md:w-full md:max-w-4xl md:rounded-t-2xl">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={!selected.length || loading}
-          className="h-14 w-full rounded-2xl bg-slate-900 text-lg font-semibold text-white shadow disabled:cursor-not-allowed disabled:bg-gray-400"
+          className="h-14 w-full rounded-2xl bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-400 text-lg font-semibold text-white shadow disabled:cursor-not-allowed disabled:bg-gray-400"
         >
           {loading ? "Đang gửi bình chọn..." : "Gửi bình chọn"}
         </button>

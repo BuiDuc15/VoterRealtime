@@ -5,19 +5,22 @@ import { db } from "../../firebase";
 import { buildChartData } from "../../utils/voteHelpers";
 import AlreadyVoted from "./AlreadyVoted";
 
-export default function ResultsPreview({ code, round, teams }) {
-  const [counts, setCounts] = useState(round.vote_counts || {});
+export default function ResultsPreview({ code, roundId, question, teams, showRoundLabel, roundName }) {
+  const [counts, setCounts] = useState(question.vote_counts || {});
+  const [total, setTotal] = useState(question.total_votes || 0);
 
   useEffect(() => {
-    const ref = doc(db, "sessions", code, "rounds", round.id);
+    const ref = doc(db, "sessions", code, "rounds", roundId, "questions", question.id);
     const unsub = onSnapshot(ref, (snap) => {
-      if (snap.exists()) setCounts(snap.data().vote_counts || {});
+      if (snap.exists()) {
+        setCounts(snap.data().vote_counts || {});
+        setTotal(snap.data().total_votes || 0);
+      }
     });
 
     return unsub;
-  }, [code, round.id]);
+  }, [code, roundId, question.id]);
 
-  const total = Object.values(counts).reduce((acc, value) => acc + value, 0);
   const data = buildChartData(teams, counts);
 
   return (
@@ -26,7 +29,8 @@ export default function ResultsPreview({ code, round, teams }) {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Tiêu chí hiện tại</p>
-        <h1 className="mt-1 text-2xl font-black text-slate-900">{round.name}</h1>
+        {showRoundLabel ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{roundName}</p> : null}
+        <h1 className="mt-1 text-2xl font-black text-slate-900">{question.text}</h1>
         <p className="mt-2 text-sm text-slate-600">Bạn có thể theo dõi kết quả thay đổi trực tiếp theo từng đội.</p>
       </div>
 

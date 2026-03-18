@@ -1,9 +1,9 @@
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 
 function statusStyle(status) {
-  if (status === "open") return "bg-green-100 text-green-700";
-  if (status === "closed") return "bg-gray-200 text-gray-700";
+  if (status === "active") return "bg-green-100 text-green-700";
+  if (status === "ended") return "bg-gray-200 text-gray-700";
   return "bg-yellow-100 text-yellow-700";
 }
 
@@ -20,7 +20,11 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
   }
 
   async function removeRound(round) {
-    if (round.status === "open") return;
+    if (round.status === "active") return;
+
+    const questionsSnap = await getDocs(collection(db, "sessions", code, "rounds", round.id, "questions"));
+    await Promise.all(questionsSnap.docs.map((questionDoc) => deleteDoc(questionDoc.ref)));
+
     await deleteDoc(doc(db, "sessions", code, "rounds", round.id));
   }
 
@@ -34,7 +38,7 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
               <div>
                 <p className="text-base font-semibold">{round.name}</p>
                 <p className="text-sm text-gray-500">
-                  {round.vote_mode} | {round.duration ? `${round.duration}s` : "Không giới hạn"}
+                  {round.auto_next ? "Tự chuyển round" : "Chờ admin chuyển round"}
                 </p>
               </div>
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyle(round.status)}`}>
@@ -58,14 +62,14 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
               <button
                 className="h-10 rounded border px-3"
                 onClick={() => onEdit(round)}
-                disabled={round.status === "open"}
+                disabled={round.status === "active"}
               >
                 Sửa
               </button>
               <button
                 className="h-10 rounded border border-red-300 px-3 text-red-600"
                 onClick={() => removeRound(round)}
-                disabled={round.status === "open"}
+                disabled={round.status === "active"}
               >
                 Xóa
               </button>
