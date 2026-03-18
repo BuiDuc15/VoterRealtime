@@ -20,7 +20,7 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
   }
 
   async function removeRound(round) {
-    if (round.status === "active") return;
+    if (round.status !== "pending") return;
 
     const questionsSnap = await getDocs(collection(db, "sessions", code, "rounds", round.id, "questions"));
     await Promise.all(questionsSnap.docs.map((questionDoc) => deleteDoc(questionDoc.ref)));
@@ -39,6 +39,7 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
                 <p className="text-base font-semibold">{round.name}</p>
                 <p className="text-sm text-gray-500">
                   {round.auto_next ? "Tự chuyển round" : "Chờ admin chuyển round"}
+                  {round.duration ? ` · ${round.duration}s` : ""}
                 </p>
               </div>
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyle(round.status)}`}>
@@ -62,14 +63,14 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
               <button
                 className="h-10 rounded border px-3"
                 onClick={() => onEdit(round)}
-                disabled={round.status === "active"}
+                disabled={round.status !== "pending"}
               >
                 Sửa
               </button>
               <button
                 className="h-10 rounded border border-red-300 px-3 text-red-600"
                 onClick={() => removeRound(round)}
-                disabled={round.status === "active"}
+                disabled={round.status !== "pending"}
               >
                 Xóa
               </button>

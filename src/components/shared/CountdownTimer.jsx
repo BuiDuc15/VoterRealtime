@@ -1,41 +1,52 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { getRemainingSeconds } from "../../utils/timerHelpers";
 
-export default function CountdownTimer({ endsAt, onExpire, className = "" }) {
-  const [remaining, setRemaining] = useState(0);
-  const expired = useRef(false);
+export default function CountdownTimer({ endsAt, duration, onExpire, size = "normal", className = "" }) {
+  const [remaining, setRemaining] = useState(() => getRemainingSeconds(endsAt));
+  const dim = size === "large" ? 120 : 64;
+  const r = dim / 2 - 6;
+  const circumference = 2 * Math.PI * r;
+  const progress = duration && remaining !== null ? remaining / duration : 1;
+  const offset = circumference * (1 - progress);
+  const isUrgent = remaining !== null && remaining <= 10 && remaining > 0;
 
   useEffect(() => {
     if (!endsAt) return undefined;
-
-    expired.current = false;
     const tick = () => {
-      const diff = endsAt.toMillis() - Date.now();
-      if (diff <= 0) {
-        setRemaining(0);
-        if (!expired.current) {
-          expired.current = true;
-          onExpire?.();
-        }
-        return;
-      }
-      setRemaining(Math.ceil(diff / 1000));
+      const secs = getRemainingSeconds(endsAt);
+      setRemaining(secs);
+      if (secs === 0) onExpire?.();
     };
-
     tick();
-    const interval = setInterval(tick, 500);
-    return () => clearInterval(interval);
-  }, [endsAt, onExpire]);
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [endsAt]);
 
-  const m = String(Math.floor(remaining / 60)).padStart(2, "0");
-  const s = String(remaining % 60).padStart(2, "0");
-  const isUrgent = remaining <= 10 && remaining > 0;
+  const m = String(Math.floor((remaining || 0) / 60)).padStart(2, "0");
+  const s = String((remaining || 0) % 60).padStart(2, "0");
 
   return (
-    <span
-      className={`font-mono text-xl font-bold tabular-nums ${isUrgent ? "animate-pulse text-red-500" : ""} ${className}`}
-    >
-      {m}:{s}
-    </span>
+    <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: dim, height: dim }}>
+      <svg width={dim} height={dim} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={dim / 2} cy={dim / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
+        <circle
+          cx={dim / 2}
+          cy={dim / 2}
+          r={r}
+          fill="none"
+          stroke={isUrgent ? "#F87171" : "#34D399"}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.5s linear" }}
+        />
+      </svg>
+      <span
+        className={`absolute font-mono font-bold tabular-nums ${isUrgent ? "text-red-400 animate-pulse" : "text-white"} ${size === "large" ? "text-3xl" : "text-base"}`}
+      >
+        {m}:{s}
+      </span>
+    </div>
   );
 }
-

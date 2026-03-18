@@ -2,22 +2,37 @@ import { useEffect, useMemo, useState } from "react";
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 
+function parseDuration(value) {
+  if (value === "" || value == null) return null;
+  if (String(value).includes(":")) {
+    const [mm, ss] = String(value).split(":").map(Number);
+    if (Number.isNaN(mm) || Number.isNaN(ss)) return null;
+    return mm * 60 + ss;
+  }
+  const s = Number(value);
+  return Number.isNaN(s) || s <= 0 ? null : s;
+}
+
 export default function RoundForm({ code, rounds, editingRound, onDone }) {
   const [name, setName] = useState("");
+  const [durationText, setDurationText] = useState("");
   const [autoNext, setAutoNext] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const canEdit = !editingRound || editingRound.status !== "active";
+  const canEdit = !editingRound || editingRound.status === "pending";
   const canSubmit = useMemo(() => Boolean(name.trim()), [name]);
+  const parsedDuration = useMemo(() => parseDuration(durationText), [durationText]);
 
   useEffect(() => {
     if (!editingRound) {
       setName("");
+      setDurationText("");
       setAutoNext(false);
       return;
     }
 
     setName(editingRound.name || "");
+    setDurationText(editingRound.duration ? String(editingRound.duration) : "");
     setAutoNext(Boolean(editingRound.auto_next));
   }, [editingRound]);
 
@@ -30,6 +45,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
       if (editingRound?.id) {
         await updateDoc(doc(db, "sessions", code, "rounds", editingRound.id), {
           name: name.trim(),
+          duration: parsedDuration,
           auto_next: autoNext,
         });
       } else {
@@ -37,6 +53,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
           name: name.trim(),
           order: rounds.length,
           status: "pending",
+          duration: parsedDuration,
           auto_next: autoNext,
           created_at: serverTimestamp(),
         });
@@ -59,6 +76,19 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
         required
         disabled={!canEdit || loading}
       />
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-gray-700">Thời gian round (giây)</label>
+        <input
+          value={durationText}
+          onChange={(event) => setDurationText(event.target.value)}
+          placeholder="Bỏ trống = không giới hạn (ví dụ: 120 hoặc 2:00)"
+          className="h-12 w-full rounded-lg border px-3 text-sm"
+          disabled={!canEdit || loading}
+        />
+        {parsedDuration ? (
+          <p className="text-xs text-gray-500">= {parsedDuration}s ({Math.floor(parsedDuration / 60)}:{String(parsedDuration % 60).padStart(2, "0")})</p>
+        ) : null}
+      </div>
       <div className="space-y-2 rounded-lg border p-3">
         <p className="text-sm font-semibold text-gray-700">Chế độ chuyển round</p>
         <div className="grid grid-cols-2 gap-2">
@@ -80,7 +110,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
           </button>
         </div>
       </div>
-      {!canEdit ? <p className="text-sm text-red-600">Không thể sửa round đang active</p> : null}
+      {!canEdit ? <p className="text-sm text-red-600">Không thể sửa round đã bắt đầu hoặc kết thúc</p> : null}
       <div className="flex gap-2">
         <button
           type="submit"

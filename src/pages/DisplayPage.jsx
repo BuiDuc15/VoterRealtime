@@ -1,131 +1,68 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import LiveChart from "../components/display/LiveChart";
-import WinnerAnnounce from "../components/display/WinnerAnnounce";
-import CountdownTimer from "../components/shared/CountdownTimer";
+import DisplayWaiting from "../components/display/DisplayWaiting";
+import DisplayResult from "../components/display/DisplayResult";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
-import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
-import { buildChartData } from "../utils/voteHelpers";
+import { useOnlineCount } from "../hooks/useOnlinePresence";
 
 export default function DisplayPage() {
   const { code } = useParams();
-  const { session, loading, isOffline } = useSession(code);
+  const { session, loading } = useSession(code);
   const { rounds, loading: roundsLoading } = useRounds(code);
-  const currentQuestion = useCurrentQuestion(code, session);
-  const [lastClosedQuestion, setLastClosedQuestion] = useState(null);
+  const onlineCount = useOnlineCount(code);
 
-  const currentRound = useMemo(
-    () => rounds.find((round) => round.id === session?.current_round_id),
-    [rounds, session?.current_round_id]
-  );
-
-  const sessionStatusLabel =
-    session?.status === "ended"
-      ? "Đã kết thúc"
-      : session?.status === "active"
-        ? "Đang diễn ra"
-        : "Đang chờ bắt đầu";
-
+  const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
   const showRoundLabel = rounds.length >= 2 || session?.show_round_label;
 
-  useEffect(() => {
-    if (currentQuestion?.status === "closed") {
-      setLastClosedQuestion(currentQuestion);
-    }
-  }, [currentQuestion]);
-
-  const resultQuestion = currentQuestion?.status === "closed" ? currentQuestion : lastClosedQuestion;
-  const resultData = useMemo(
-    () => buildChartData(session?.teams || [], resultQuestion?.vote_counts || {}),
-    [resultQuestion, session?.teams]
-  );
-
-  const isWaiting = !session || session.status === "waiting" || (!currentQuestion && !resultQuestion);
-  const isVoting = currentQuestion?.status === "open";
-  const isResult = !isVoting && Boolean(resultQuestion);
+  const statusLabel = session?.status === "ended" ? "Đã kết thúc" : session?.status === "active" ? "Đang diễn ra" : "Chờ bắt đầu";
 
   if (loading || roundsLoading) return <LoadingSpinner label="Đang tải màn hình chiếu..." />;
-  if (!session) return <div className="p-8 text-center">Phiên bình chọn không tồn tại</div>;
+  if (!session) return (
+    <div className="flex min-h-screen items-center justify-center text-slate-500 bg-slate-50">
+      Phiên không tồn tại
+    </div>
+  );
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-slate-950 text-white">
-      {isOffline ? (
-        <div className="bg-yellow-600 px-4 py-2 text-center text-sm font-semibold">Đang kết nối lại...</div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/70 p-6 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50/60 text-slate-800">
+      {/* Header */}
+      <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-slate-200 bg-white/90 px-4 py-2.5 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-3">
         <div>
-          <h1 className="text-3xl font-bold">{session.name}</h1>
-          <p className="mt-1 text-sm text-slate-300">Mã phiên: {code?.toUpperCase()}</p>
-          {showRoundLabel && currentRound ? <p className="mt-1 text-sm text-slate-400">{currentRound.name}</p> : null}
+          <p className="text-base font-bold text-slate-900 sm:text-lg">{session.name}</p>
+          <p className="font-mono text-[10px] text-slate-400 sm:text-xs">{code?.toUpperCase()}</p>
         </div>
-        <div className="rounded-full border border-sky-500/30 bg-sky-500/10 px-4 py-1 text-sm font-semibold text-sky-200">
-          Trạng thái: {sessionStatusLabel}
+        <div className="flex items-center gap-2 text-xs text-slate-500 sm:text-sm">
+          {session.status === "active" ? <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> : null}
+          {session.status === "ended"  ? <span className="h-2 w-2 rounded-full bg-slate-400" /> : null}
+          <span className="font-medium">{statusLabel}</span>
+          {showRoundLabel && currentRound ? (
+            <span className="text-slate-400">· {currentRound.name}</span>
+          ) : null}
         </div>
-        <div className="text-xl text-slate-300">
-          {currentQuestion?.text || resultQuestion?.text || (session.status === "ended" ? "Tổng kết phiên" : "Chờ bắt đầu...")}
-        </div>
-        {currentQuestion?.ends_at && isVoting ? (
-          <CountdownTimer endsAt={currentQuestion.ends_at} className="text-white" />
-        ) : (
-          <div className="w-[70px]" />
-        )}
+        <p className="text-xs text-slate-400 sm:text-sm">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 mr-1 align-middle" />
+          {onlineCount} người đang online
+        </p>
       </div>
 
-      <div className="flex flex-1 items-center justify-center p-6">
-        {isWaiting ? (
-          <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-800/80 p-8 text-center">
-            <p className="text-3xl font-black">Sự kiện sắp bắt đầu</p>
-            <p className="mt-3 text-slate-300">Mời voter quét mã QR để vào bình chọn.</p>
-          </div>
-        ) : null}
-
-        {isVoting ? (
-          <div className="w-full max-w-5xl space-y-8 text-center">
-            <h2 className="text-5xl font-black leading-tight">{currentQuestion.text}</h2>
-            {currentQuestion.ends_at ? <CountdownTimer endsAt={currentQuestion.ends_at} className="text-8xl" /> : null}
-            <p className="text-xl text-slate-300">{currentQuestion.total_votes || 0} phiếu đã được ghi nhận</p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {(session.teams || []).map((team) => (
-                <div key={team.id} className="rounded-full px-5 py-2 text-xl font-semibold text-white" style={{ backgroundColor: team.color }}>
-                  {team.name}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {isResult ? (
-          <div className="w-full max-w-6xl space-y-4">
-            <LiveChart teams={session.teams} voteCounts={resultQuestion.vote_counts || {}} roundStatus="closed" title="Kết quả câu vừa đóng" />
-
-            <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4">
-              <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">Chi tiết kết quả</p>
-              <div className="space-y-3">
-                {resultData.map((item) => (
-                  <div key={item.id}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span className="font-semibold">{item.name}</span>
-                      <span>
-                        {item.votes} | {item.pct}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-700">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${item.pct}%`, backgroundColor: item.color }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <WinnerAnnounce teams={session.teams} voteCounts={resultQuestion.vote_counts || {}} />
-          </div>
-        ) : null}
+      {/* Body — scrollable */}
+      <div className="px-4 py-5 sm:px-6 sm:py-7">
+        {rounds.length === 0 ? (
+          <DisplayWaiting sessionName={session.name} code={code} isEnded={session.status === "ended"} />
+        ) : (
+          <DisplayResult
+            code={code}
+            rounds={rounds}
+            teams={session.teams}
+            currentRoundId={session.current_round_id}
+            showRoundLabel={showRoundLabel}
+            currentRoundName={currentRound?.name}
+            sessionStatus={session.status}
+          />
+        )}
       </div>
     </div>
   );
 }
-
-

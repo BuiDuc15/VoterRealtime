@@ -8,18 +8,29 @@ service cloud.firestore {
       allow delete: if false;
 
       match /rounds/{roundId} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if true;
 
         match /questions/{questionId} {
-          allow read, write: if true;
+          allow read: if true;
+          allow write: if true;
 
-          match /votes/{voteId} {
+          match /shards/{shardId} {
+            allow read: if true;
+            allow write: if true;
+          }
+
+          match /votes/{voterToken} {
             allow create: if true;
-            allow read, update, delete: if false;
+            allow read: if true;
+            allow update, delete: if false;
           }
         }
+      }
+
+      match /presence/{voterToken} {
+        allow read, write: if true;
       }
     }
   }
 }
-

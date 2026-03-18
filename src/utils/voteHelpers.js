@@ -1,18 +1,34 @@
-export function calcResults(teams, voteCounts = {}) {
-  const total = Object.values(voteCounts).reduce((acc, value) => acc + value, 0);
-
-  return teams.map((team) => ({
-    ...team,
-    votes: voteCounts[team.id] || 0,
-    pct: total > 0 ? Math.round(((voteCounts[team.id] || 0) / total) * 100) : 0,
-  }));
+export function calcResults(teams, vote_counts = {}, total_votes = 0) {
+  return teams
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .map((team) => ({
+      ...team,
+      votes: vote_counts[team.id] || 0,
+      pct: total_votes > 0 ? Math.round(((vote_counts[team.id] || 0) / total_votes) * 100) : 0,
+    }));
 }
 
 export function getWinners(results) {
   if (!results.length) return [];
-  const max = Math.max(...results.map((result) => result.votes));
+  const max = Math.max(...results.map((r) => r.votes));
   if (max === 0) return [];
-  return results.filter((result) => result.votes === max);
+  return results.filter((r) => r.votes === max);
+}
+
+export function buildChartData(teams = [], voteCounts = {}) {
+  const total = Object.values(voteCounts).reduce((acc, v) => acc + v, 0);
+  return teams
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .map((team) => {
+      const votes = Number(voteCounts[team.id] || 0);
+      return {
+        id: team.id,
+        name: team.name,
+        votes,
+        pct: total > 0 ? Math.round((votes / total) * 100) : 0,
+        color: team.color,
+      };
+    });
 }
 
 export function createZeroCounts(teams = []) {
@@ -21,33 +37,3 @@ export function createZeroCounts(teams = []) {
     return acc;
   }, {});
 }
-
-export function sumVoteCounts(rounds = [], teams = []) {
-  const teamIds = new Set(teams.map((team) => team.id));
-
-  return rounds.reduce((acc, round) => {
-    const counts = round.vote_counts || {};
-    Object.entries(counts).forEach(([teamId, votes]) => {
-      if (!teamIds.size || teamIds.has(teamId)) {
-        acc[teamId] = (acc[teamId] || 0) + (Number(votes) || 0);
-      }
-    });
-    return acc;
-  }, createZeroCounts(teams));
-}
-
-export function buildChartData(teams = [], voteCounts = {}) {
-  const total = Object.values(voteCounts).reduce((acc, value) => acc + value, 0);
-
-  return teams.map((team) => {
-    const votes = Number(voteCounts[team.id] || 0);
-    return {
-      id: team.id,
-      name: team.name,
-      votes,
-      pct: total > 0 ? Math.round((votes / total) * 100) : 0,
-      color: team.color,
-    };
-  });
-}
-

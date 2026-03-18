@@ -1,39 +1,33 @@
 import { motion } from "framer-motion";
-import { calcResults, getWinners } from "../../utils/voteHelpers";
 
-export default function WinnerAnnounce({ teams, voteCounts }) {
-  const results = calcResults(teams, voteCounts);
-  const winners = getWinners(results);
-
-  if (!winners.length) return null;
-
-  const isTie = winners.length > 1;
-
+export default function WinnerAnnounce({ winners, isTie }) {
   return (
     <motion.div
-      className="absolute inset-0 flex flex-col items-center justify-center bg-black/70"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      className="py-6 text-center"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.8, duration: 0.5 }}
     >
-      <motion.div
-        className="rounded-3xl border border-white/20 bg-slate-900/70 p-12 text-center backdrop-blur"
-        initial={{ scale: 0.5 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 200 }}
-      >
-        <p className="mb-4 text-4xl">{isTie ? "🤝 Đồng hạng" : "🏆 Đội chiến thắng"}</p>
-        {winners.map((winner) => (
-          <div key={winner.id}>
-            <p className="text-7xl font-black" style={{ color: winner.color }}>
-              {winner.name}
-            </p>
-            <p className="mt-2 text-3xl text-slate-100">
-              {winner.pct}% — {winner.votes} phiếu
-            </p>
-          </div>
+      <p className="mb-2 text-sm uppercase tracking-widest text-white/40">
+        {isTie ? "Hòa điểm" : "Dẫn đầu vòng này"}
+      </p>
+      <div className="flex flex-wrap justify-center gap-6">
+        {winners.map((w) => (
+          <motion.span
+            key={w.name}
+            className="text-6xl font-black"
+            style={{ color: w.color }}
+            animate={{ scale: [1, 1.04, 1] }}
+            transition={{
+              repeat: Infinity,
+              duration: 2,
+              ease: "easeInOut",
+            }}
+          >
+            {w.name}
+          </motion.span>
         ))}
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
-
