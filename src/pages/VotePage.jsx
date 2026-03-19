@@ -5,6 +5,7 @@ import { useSession } from "../hooks/useSession";
 import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
 import { useQuestions } from "../hooks/useQuestions";
 import { useVoterToken } from "../hooks/useVoterToken";
+import { useAutoNextQuestion } from "../hooks/useAutoNextQuestion";
 import { useVoterPresence } from "../hooks/useOnlinePresence";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import WaitingScreen from "../components/voter/WaitingScreen";
@@ -12,6 +13,7 @@ import VoteCard from "../components/voter/VoteCard";
 import ResultsPreview from "../components/voter/ResultsPreview";
 import VoteHistory from "../components/voter/VoteHistory";
 import { submitVoteWithRetry } from "../utils/sharding";
+import { nextQuestion } from "../utils/sessionFlow";
 
 const VOTE_ERROR_MESSAGES = {
   already_voted: "Bạn đã vote câu này rồi.",
@@ -47,6 +49,12 @@ export default function VotePage() {
     : Number(session?.default_question_duration) > 0
     ? Number(session.default_question_duration)
     : null;
+
+  useAutoNextQuestion({
+    currentQuestion,
+    enabled: session?.status === "active",
+    onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
+  });
 
   const { questions: allQuestionsRaw } = useQuestions(code, roundId);
   const allQuestions = useMemo(() => allQuestionsRaw.map((q) => ({ ...q, roundId })), [allQuestionsRaw, roundId]);

@@ -81,7 +81,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
         <input
           value={durationText}
           onChange={(event) => setDurationText(event.target.value)}
-          placeholder="Bỏ trống = không giới hạn (ví dụ: 120 hoặc 2:00)"
+          placeholder="Bỏ trống = dùng mặc định session hoặc không giới hạn (ví dụ: 120 hoặc 2:00)"
           className="h-12 w-full rounded-lg border px-3 text-sm"
           disabled={!canEdit || loading}
         />
@@ -90,7 +90,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
         ) : null}
       </div>
       <div className="space-y-2 rounded-lg border p-3">
-        <p className="text-sm font-semibold text-gray-700">Chế độ chuyển round</p>
+        <p className="text-sm font-semibold text-gray-700">Mode round (khi round kết thúc)</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -98,7 +98,7 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
             className={`h-10 rounded-lg border text-sm font-semibold ${!autoNext ? "border-slate-900 bg-slate-900 text-white" : "bg-white"}`}
             disabled={!canEdit || loading}
           >
-            Manual (Admin chuyển)
+            Manual (chờ admin chuyển round)
           </button>
           <button
             type="button"
@@ -106,9 +106,10 @@ export default function RoundForm({ code, rounds, editingRound, onDone }) {
             className={`h-10 rounded-lg border text-sm font-semibold ${autoNext ? "border-slate-900 bg-slate-900 text-white" : "bg-white"}`}
             disabled={!canEdit || loading}
           >
-            Auto (Tự chuyển)
+            Auto (tự sang round kế tiếp)
           </button>
         </div>
+        <p className="text-[11px] text-gray-500">Lưu ý: Mode round khác với mode câu hỏi. Timeout round cũng độc lập với timeout câu hỏi.</p>
       </div>
       {!canEdit ? <p className="text-sm text-red-600">Không thể sửa round đã bắt đầu hoặc kết thúc</p> : null}
       <div className="flex gap-2">

@@ -24,10 +24,10 @@ export default function EndSessionCelebration({
           className="relative w-full max-w-4xl rounded-3xl border border-white/25 bg-white/12 p-6 shadow-2xl backdrop-blur-md sm:p-10"
         >
           <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-white/80 sm:text-sm">
-            Ket thuc phien
+            Kết thúc phiên
           </p>
           <h1 className="mt-2 text-center text-2xl font-black leading-tight sm:text-4xl">
-            Chuc mung doi chien thang!
+            Chúc mừng đội chiến thắng! 🏆
           </h1>
           <p className="mt-2 text-center text-sm text-white/80 sm:text-base">{sessionName}</p>
 
@@ -35,7 +35,7 @@ export default function EndSessionCelebration({
             <div className="mt-8 space-y-5">
               <div className="text-center">
                 <p className="text-sm font-semibold text-white/80">
-                  {isTie ? "Dong hang nhat" : "Quan quan"}
+                  {isTie ? "Đồng hạng nhất 🤝" : "Quán quân 👑"}
                 </p>
                 <div className="mt-2 flex flex-wrap justify-center gap-3">
                   {leaders.map((team) => (
@@ -54,23 +54,23 @@ export default function EndSessionCelebration({
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
-                  <p className="text-xs uppercase tracking-wider text-white/70">Tong phieu</p>
+                  <p className="text-xs uppercase tracking-wider text-white/70">Tổng phiếu</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.sessionTotal}</p>
                 </div>
                 <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
-                  <p className="text-xs uppercase tracking-wider text-white/70">Phieu dan dau</p>
+                  <p className="text-xs uppercase tracking-wider text-white/70">Phiếu dẫn đầu</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.leaderVotes}</p>
                 </div>
                 <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
-                  <p className="text-xs uppercase tracking-wider text-white/70">Ty le</p>
+                  <p className="text-xs uppercase tracking-wider text-white/70">Tỷ lệ</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.leaderPercent}%</p>
                 </div>
               </div>
             </div>
           ) : (
             <div className="mt-8 rounded-2xl border border-white/25 bg-white/10 p-5 text-center">
-              <p className="text-lg font-bold">Chua co du lieu binh chon</p>
-              <p className="mt-1 text-sm text-white/80">Ban van co the xem trang chi tiet de kiem tra tung cau hoi.</p>
+              <p className="text-lg font-bold">Chưa có dữ liệu bình chọn</p>
+              <p className="mt-1 text-sm text-white/80">Bạn vẫn có thể xem trang chi tiết để kiểm tra từng câu hỏi.</p>
             </div>
           )}
 
@@ -80,7 +80,7 @@ export default function EndSessionCelebration({
               onClick={onShowDetails}
               className="rounded-2xl bg-white px-6 py-3 text-sm font-bold text-indigo-700 shadow-lg transition hover:shadow-xl sm:text-base"
             >
-              Xem chi tiet ket qua
+              Xem chi tiết kết quả
             </button>
           </div>
         </motion.div>

@@ -69,7 +69,7 @@ export default function SessionTimeoutSettings({ code, session }) {
 
       {/* Default question timeout */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-600">Timeout câu hỏi (giây)</label>
+        <label className="text-sm font-medium text-gray-600">Thời gian mặc định - Câu hỏi (giây)</label>
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => (
             <button
@@ -99,7 +99,7 @@ export default function SessionTimeoutSettings({ code, session }) {
 
       {/* Default round timeout */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-gray-600">Timeout round (giây)</label>
+        <label className="text-sm font-medium text-gray-600">Thời gian mặc định - Round (giây)</label>
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => (
             <button

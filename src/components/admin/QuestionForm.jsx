@@ -64,10 +64,13 @@ export default function QuestionForm({ code, roundId, questions, editingQuestion
         <button type="button" onClick={() => setVoteMode("single")} className={`h-10 rounded-lg border text-sm font-medium ${voteMode === "single" ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Chọn 1</button>
         <button type="button" onClick={() => setVoteMode("multi")} className={`h-10 rounded-lg border text-sm font-medium ${voteMode === "multi" ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Chọn nhiều</button>
       </div>
-      <input value={durationText} onChange={(e) => setDurationText(e.target.value)} placeholder="Thời gian (giây, bỏ trống = không giới hạn)" className="h-10 w-full rounded-lg border px-3 text-sm" disabled={!canEdit || loading} />
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Timeout câu hỏi</p>
+        <input value={durationText} onChange={(e) => setDurationText(e.target.value)} placeholder="Thời gian câu hỏi (giây, bỏ trống = dùng mặc định session hoặc không giới hạn)" className="h-10 w-full rounded-lg border px-3 text-sm" disabled={!canEdit || loading} />
+      </div>
       <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
-        <button type="button" onClick={() => setAutoNext(false)} className={`h-9 rounded-lg border text-xs font-semibold ${!autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Manual</button>
-        <button type="button" onClick={() => setAutoNext(true)} className={`h-9 rounded-lg border text-xs font-semibold ${autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Auto</button>
+        <button type="button" onClick={() => setAutoNext(false)} className={`h-9 rounded-lg border px-2 text-xs font-semibold ${!autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Mode câu hỏi: Manual (admin chuyển)</button>
+        <button type="button" onClick={() => setAutoNext(true)} className={`h-9 rounded-lg border px-2 text-xs font-semibold ${autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Mode câu hỏi: Auto (theo timeout câu)</button>
       </div>
       <div className="flex gap-2">
         <button type="submit" disabled={!canEdit || loading} className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:bg-gray-300">{loading ? "Đang lưu..." : editingQuestion ? "Cập nhật" : "Thêm câu"}</button>

@@ -38,8 +38,8 @@ export default function RoundList({ code, rounds, currentRoundId, onEdit }) {
               <div>
                 <p className="text-base font-semibold">{round.name}</p>
                 <p className="text-sm text-gray-500">
-                  {round.auto_next ? "Tự chuyển round" : "Chờ admin chuyển round"}
-                  {round.duration ? ` · ${round.duration}s` : ""}
+                  Mode round: {round.auto_next ? "Auto" : "Manual"}
+                  {round.duration ? ` · Timeout round: ${round.duration}s` : " · Timeout round: không giới hạn"}
                 </p>
               </div>
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusStyle(round.status)}`}>

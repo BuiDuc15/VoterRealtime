@@ -11,7 +11,6 @@ import { useAutoNextRound } from "../hooks/useAutoNextRound";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
-import { useShardedVoteCounts } from "../hooks/useShardedVoteCounts";
 import { nextQuestion, nextRound } from "../utils/sessionFlow";
 
 export default function DisplayPage() {
@@ -20,7 +19,6 @@ export default function DisplayPage() {
   const { rounds, loading: roundsLoading } = useRounds(code);
   const onlineCount = useOnlineCount(code);
   const currentQuestion = useCurrentQuestion(code, session);
-  const { total: liveTotalVotes } = useShardedVoteCounts(code, session?.current_round_id, session?.current_question_id);
   const [showEndCelebration, setShowEndCelebration] = useState(false);
   const [sessionSummary, setSessionSummary] = useState(null);
   const prevStatusRef = useRef();
@@ -44,8 +42,6 @@ export default function DisplayPage() {
   useAutoNextQuestion({
     currentQuestion,
     enabled: session?.status === "active",
-    onlineCount,
-    totalVotes: liveTotalVotes,
     onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
   });
 
@@ -109,13 +105,13 @@ export default function DisplayPage() {
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-4">
             {currentRound?.ends_at ? (
               <div className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 sm:flex-1">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Timeout round</p>
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Thời gian round còn lại</p>
                 <CountdownBar endsAt={currentRound.ends_at} duration={roundDuration} variant="light" />
               </div>
             ) : null}
             {currentQuestion?.ends_at ? (
               <div className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 sm:flex-1">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Timeout câu hỏi</p>
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Thời gian câu hỏi còn lại</p>
                 <CountdownBar endsAt={currentQuestion.ends_at} duration={questionDuration} variant="light" />
               </div>
             ) : null}

@@ -24,7 +24,7 @@ export async function generateUniqueCode() {
   }
 
   if (!available) {
-    throw new Error("Khong tao duoc ma session duy nhat");
+    throw new Error("Không tạo được mã session duy nhất");
   }
 
   return code;

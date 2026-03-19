@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Tự động chuyển câu hỏi theo 2 trigger:
- * 1) Hết timer (ends_at)
- * 2) Đã đủ phiếu từ toàn bộ voter đang online
+ * Tự động chuyển câu hỏi theo timeout của CHÍNH câu hỏi.
  *
- * Điều kiện bắt buộc: câu hỏi phải có auto_next=true.
+ * Điều kiện bắt buộc:
+ * - Câu hỏi đang open
+ * - Mode câu hỏi = auto_next
+ * - Có question.ends_at (được tính từ timeout câu hỏi)
+ *
+ * Timeout round và mode round được xử lý riêng ở useAutoNextRound.
  * Hook có thể chạy ở AdminPage và DisplayPage để tăng độ ổn định.
  *
  * KHÔNG để voter tự gọi nextQuestion() sau khi vote:
@@ -15,23 +18,12 @@ export function useAutoNextQuestion({
   currentQuestion,
   enabled = true,
   onNextQuestion,
-  onlineCount = 0,
-  totalVotes = 0,
 }) {
   const triggered = useRef(false);
 
   useEffect(() => {
     if (!enabled || !currentQuestion || currentQuestion.status !== "open" || !currentQuestion.auto_next) {
       triggered.current = false;
-      return undefined;
-    }
-
-    // Chuyển ngay khi tất cả voter đang online đã gửi phiếu.
-    if (onlineCount > 0 && totalVotes >= onlineCount) {
-      if (!triggered.current) {
-        triggered.current = true;
-        onNextQuestion?.();
-      }
       return undefined;
     }
 
@@ -62,8 +54,6 @@ export function useAutoNextQuestion({
     currentQuestion?.status,
     currentQuestion?.auto_next,
     currentQuestion?.ends_at,
-    onlineCount,
-    totalVotes,
     onNextQuestion,
   ]);
 }
