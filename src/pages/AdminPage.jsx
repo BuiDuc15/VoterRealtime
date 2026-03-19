@@ -19,6 +19,7 @@ import { useAutoNextQuestion } from "../hooks/useAutoNextQuestion";
 import { useAutoNextRound } from "../hooks/useAutoNextRound";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
+import { useShardedVoteCounts } from "../hooks/useShardedVoteCounts";
 import { nextQuestion, nextRound, resetSessionRun, startSessionRun } from "../utils/sessionFlow";
 
 const TABS = [
@@ -42,6 +43,7 @@ export default function AdminPage() {
   const { rounds, loading: roundsLoading } = useRounds(code);
   const onlineCount = useOnlineCount(code);
   const currentQuestion = useCurrentQuestion(code, session);
+  const { total: liveTotalVotes } = useShardedVoteCounts(code, session?.current_round_id, session?.current_question_id);
 
   const contentRoundId = selectedRoundId || session?.current_round_id || rounds[0]?.id || null;
   const { questions: contentQuestions } = useQuestions(code, contentRoundId);
@@ -55,12 +57,14 @@ export default function AdminPage() {
   useAutoNextQuestion({
     currentQuestion,
     enabled: session?.status === "active",
+    onlineCount,
+    totalVotes: liveTotalVotes,
     onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
   });
 
   useAutoNextRound({
     currentRound,
-    canAdvanceRound: session?.status === "active" && currentRound?.status === "ended" && currentRound?.auto_next && !session?.current_question_id,
+    enabled: session?.status === "active",
     onNextRound: async () => { await nextRound(code); },
   });
 

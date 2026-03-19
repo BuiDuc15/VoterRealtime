@@ -2,7 +2,18 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import CountdownBar from "../shared/CountdownBar";
 
-export default function VoteCard({ question, teams, showRoundLabel, roundName, onSubmit, submitting = false, submitError = null }) {
+export default function VoteCard({
+  question,
+  teams,
+  showRoundLabel,
+  roundName,
+  roundEndsAt,
+  roundDuration,
+  questionDuration,
+  onSubmit,
+  submitting = false,
+  submitError = null,
+}) {
   const [selected, setSelected] = useState([]);
 
   function toggle(teamId) {
@@ -34,9 +45,16 @@ export default function VoteCard({ question, teams, showRoundLabel, roundName, o
           {question.description ? (
             <p className="text-sm leading-relaxed text-white/80 sm:text-base">{question.description}</p>
           ) : null}
+          {roundEndsAt ? (
+            <div className="rounded-lg border border-white/15 bg-white/10 px-3 py-2">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/75">Thời gian round còn lại</p>
+              <CountdownBar endsAt={roundEndsAt} duration={roundDuration} />
+            </div>
+          ) : null}
           {question.ends_at ? (
             <div className="pt-1">
-              <CountdownBar endsAt={question.ends_at} duration={question.duration} />
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-white/75">Thời gian câu hỏi còn lại</p>
+              <CountdownBar endsAt={question.ends_at} duration={questionDuration} />
             </div>
           ) : null}
         </div>

@@ -23,6 +23,13 @@ function questionEndsAt(questionData, defaultDuration) {
   return Number.isFinite(fallback) && fallback > 0 ? makeEndsAt(fallback) : null;
 }
 
+function roundEndsAt(roundData, defaultDuration) {
+  const dur = Number(roundData?.duration);
+  if (Number.isFinite(dur) && dur > 0) return makeEndsAt(dur);
+  const fallback = Number(defaultDuration);
+  return Number.isFinite(fallback) && fallback > 0 ? makeEndsAt(fallback) : null;
+}
+
 /* ── startSessionRun ──────────────────────────────────── */
 
 export async function startSessionRun(code) {
@@ -44,6 +51,7 @@ export async function startSessionRun(code) {
     // Reads first
     const liveSession = await tx.get(sessionRef);
     if (!liveSession.exists()) return;
+    const liveFirstRound = firstRound ? await tx.get(firstRound.ref) : null;
     const liveFirstQuestion = firstQuestionDoc ? await tx.get(firstQuestionDoc.ref) : null;
     const sessionData = liveSession.data();
 
@@ -55,7 +63,10 @@ export async function startSessionRun(code) {
     });
 
     if (firstRound) {
-      tx.update(firstRound.ref, { status: "active" });
+      tx.update(firstRound.ref, {
+        status: "active",
+        ends_at: liveFirstRound?.exists() ? roundEndsAt(liveFirstRound.data(), sessionData.default_round_duration) : null,
+      });
     }
     if (firstQuestionDoc && liveFirstQuestion?.exists()) {
       tx.update(firstQuestionDoc.ref, {
@@ -108,7 +119,7 @@ export async function nextQuestion(code, currentRoundId, currentQuestionId) {
     }
 
     // No more questions in this round
-    tx.update(liveRound.ref, { status: "ended" });
+    tx.update(liveRound.ref, { status: "ended", ends_at: null });
     tx.update(sessionRef, { current_question_id: null });
     return Boolean(liveRound.data().auto_next);
   });
@@ -154,24 +165,30 @@ export async function nextRound(code) {
     // ALL reads first
     const liveSession = await tx.get(sessionRef);
     const liveCurrentQ = currentQRef ? await tx.get(currentQRef) : null;
+    const liveCurrentRound = await tx.get(currentRoundDoc.ref);
+    const liveNextRound = nextRoundDoc ? await tx.get(nextRoundDoc.ref) : null;
     const liveNextQ = nextQDoc ? await tx.get(nextQDoc.ref) : null;
 
     if (!liveSession.exists()) return false;
     const s = liveSession.data();
     if (s.status !== "active" || s.current_round_id !== currentRoundId) return false;
+    if (!liveCurrentRound.exists()) return false;
 
     // ALL writes after
     if (liveCurrentQ?.exists() && liveCurrentQ.data().status === "open") {
       tx.update(currentQRef, { status: "closed", ends_at: null });
     }
-    tx.update(currentRoundDoc.ref, { status: "ended" });
+    tx.update(currentRoundDoc.ref, { status: "ended", ends_at: null });
 
     if (!nextRoundDoc) {
       tx.update(sessionRef, { status: "ended", current_round_id: null, current_question_id: null });
       return true;
     }
 
-    tx.update(nextRoundDoc.ref, { status: "active" });
+    tx.update(nextRoundDoc.ref, {
+      status: "active",
+      ends_at: liveNextRound?.exists() ? roundEndsAt(liveNextRound.data(), s.default_round_duration) : null,
+    });
     tx.update(sessionRef, { current_round_id: nextRoundDoc.id, current_question_id: nextQDoc ? nextQDoc.id : null });
 
     if (nextQDoc && liveNextQ?.exists()) {
@@ -200,7 +217,7 @@ export async function resetSessionRun(code) {
   });
 
   for (const roundDoc of orderedRounds) {
-    batch.update(roundDoc.ref, { status: "pending" });
+    batch.update(roundDoc.ref, { status: "pending", ends_at: null });
     const questions = await loadOrderedQuestions(code, roundDoc.id);
     questions.forEach((qDoc) => {
       batch.update(qDoc.ref, {

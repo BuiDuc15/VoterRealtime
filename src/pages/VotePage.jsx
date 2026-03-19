@@ -12,7 +12,6 @@ import VoteCard from "../components/voter/VoteCard";
 import ResultsPreview from "../components/voter/ResultsPreview";
 import VoteHistory from "../components/voter/VoteHistory";
 import { submitVoteWithRetry } from "../utils/sharding";
-import { nextQuestion } from "../utils/sessionFlow";
 
 const VOTE_ERROR_MESSAGES = {
   already_voted: "Bạn đã vote câu này rồi.",
@@ -38,6 +37,16 @@ export default function VotePage() {
   const showRoundLabel = totalRounds >= 2 || session?.show_round_label;
   const roundId = currentRound?.id;
   const questionId = currentQuestion?.id;
+  const roundDuration = Number(currentRound?.duration) > 0
+    ? Number(currentRound.duration)
+    : Number(session?.default_round_duration) > 0
+    ? Number(session.default_round_duration)
+    : null;
+  const questionDuration = Number(currentQuestion?.duration) > 0
+    ? Number(currentQuestion.duration)
+    : Number(session?.default_question_duration) > 0
+    ? Number(session.default_question_duration)
+    : null;
 
   const { questions: allQuestionsRaw } = useQuestions(code, roundId);
   const allQuestions = useMemo(() => allQuestionsRaw.map((q) => ({ ...q, roundId })), [allQuestionsRaw, roundId]);
@@ -89,10 +98,11 @@ export default function VotePage() {
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", () => window.history.pushState(null, "", window.location.href));
 
-      // Auto-next if question has auto_next
-      if (currentQuestion?.auto_next) {
-        await nextQuestion(code, roundId, questionId).catch(() => {});
-      }
+      // NOTE: Không gọi nextQuestion() tại đây!
+      // Việc chuyển câu hỏi là trách nhiệm của admin (useAutoNextQuestion hook ở AdminPage
+      // dựa trên timer ends_at) hoặc admin thao tác tay. Nếu voter tự gọi nextQuestion(),
+      // câu hỏi sẽ đóng ngay sau khi người đầu tiên vote, khiến những người khác không
+      // thể vote được nữa.
     } else {
       setSubmitError(VOTE_ERROR_MESSAGES[result.reason] || "Có lỗi xảy ra.");
     }
@@ -107,12 +117,19 @@ export default function VotePage() {
   if (!currentQuestion || currentQuestion.status === "pending") return <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
   if (currentQuestion.status === "closed") return <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
 
-  if (hasVoted && currentQuestion.auto_next) return <WaitingScreen message="Đã gửi bình chọn. Đang chuyển câu tiếp..." />;
-
-  if (hasVoted) {
+  if (hasVoted && currentQuestion.status === "open") {
     return (
-      <div className="min-h-screen bg-white">
-        <ResultsPreview code={code} roundId={roundId} question={currentQuestion} teams={session.teams} myChoices={myChoices} />
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/40">
+        <ResultsPreview
+          code={code}
+          roundId={roundId}
+          question={currentQuestion}
+          teams={session.teams}
+          myChoices={myChoices}
+          round={currentRound}
+          roundDuration={roundDuration}
+          questionDuration={questionDuration}
+        />
         <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
       </div>
     );
@@ -124,6 +141,9 @@ export default function VotePage() {
       teams={session.teams}
       showRoundLabel={showRoundLabel}
       roundName={currentRound?.name}
+      roundEndsAt={currentRound?.ends_at}
+      roundDuration={roundDuration}
+      questionDuration={questionDuration}
       onSubmit={handleSubmit}
       submitting={submitting}
       submitError={submitError}

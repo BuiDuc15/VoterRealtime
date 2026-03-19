@@ -155,7 +155,17 @@ function FinalResultSection({ teams, sessionTotals, sessionTotal, sessionStatus 
 }
 
 /* ── Main ─────────────────────────────────────────────── */
-export default function DisplayResult({ code, rounds, teams, currentRoundId, showRoundLabel, currentRoundName, sessionStatus, groupResultsByRound = true }) {
+export default function DisplayResult({
+  code,
+  rounds,
+  teams,
+  currentRoundId,
+  showRoundLabel,
+  currentRoundName,
+  sessionStatus,
+  groupResultsByRound = true,
+  onSessionSummary,
+}) {
   // Collect per-round data bubbled up from RoundSummaryCards
   const [allRoundData, setAllRoundData] = useState({});
 
@@ -191,6 +201,21 @@ export default function DisplayResult({ code, rounds, teams, currentRoundId, sho
     });
     return { sessionTotals: totals, sessionTotal: total };
   }, [allRoundData]);
+
+  useEffect(() => {
+    const sortedTeams = [...teams].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const leaderVotes = Math.max(0, ...sortedTeams.map((t) => sessionTotals[t.id] || 0));
+    const leaders = sortedTeams.filter((t) => (sessionTotals[t.id] || 0) === leaderVotes && leaderVotes > 0);
+    const leaderPercent = sessionTotal > 0 ? Math.round((leaderVotes / sessionTotal) * 100) : 0;
+
+    onSessionSummary?.({
+      sessionTotals,
+      sessionTotal,
+      leaderVotes,
+      leaderPercent,
+      leaders,
+    });
+  }, [teams, sessionTotals, sessionTotal, onSessionSummary]);
 
   const allQuestions = useMemo(() => {
     return rounds
