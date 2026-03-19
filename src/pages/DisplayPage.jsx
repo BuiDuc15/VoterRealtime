@@ -14,7 +14,8 @@ export default function DisplayPage() {
   const onlineCount = useOnlineCount(code);
 
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
-  const showRoundLabel = rounds.length >= 2 || session?.show_round_label;
+  const groupResultsByRound = session?.group_results_by_round !== false;
+  const showRoundLabel = groupResultsByRound && (rounds.length >= 2 || session?.show_round_label);
 
   const statusLabel = session?.status === "ended" ? "Đã kết thúc" : session?.status === "active" ? "Đang diễn ra" : "Chờ bắt đầu";
 
@@ -60,6 +61,7 @@ export default function DisplayPage() {
             showRoundLabel={showRoundLabel}
             currentRoundName={currentRound?.name}
             sessionStatus={session.status}
+            groupResultsByRound={groupResultsByRound}
           />
         )}
       </div>

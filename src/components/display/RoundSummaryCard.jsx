@@ -8,13 +8,13 @@ const STATUS_MAP = {
   ended:   { label: "Hoàn thành",   cls: "bg-violet-100 text-violet-700 border border-violet-200" },
 };
 
-export default function RoundSummaryCard({ code, round, teams, isCurrentRound, onData }) {
-  const { teamTotals, totalVotes } = useRoundAggregatedVotes(code, round.id);
+export default function RoundSummaryCard({ code, round, teams, isCurrentRound, onData, showRoundName = true }) {
+  const { teamTotals, totalVotes, questions } = useRoundAggregatedVotes(code, round.id);
 
   // Bubble data up for parent aggregation
   useEffect(() => {
-    onData?.(round.id, teamTotals, totalVotes);
-  }, [round.id, teamTotals, totalVotes]);
+    onData?.(round.id, { teamTotals, totalVotes, questions, roundName: round.name, roundOrder: round.order || 0 });
+  }, [round.id, round.name, round.order, teamTotals, totalVotes, questions, onData]);
 
   const maxVotes = useMemo(
     () => Math.max(1, ...teams.map((t) => teamTotals[t.id] || 0)),
@@ -42,7 +42,7 @@ export default function RoundSummaryCard({ code, round, teams, isCurrentRound, o
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <h3 className="text-base font-bold text-slate-800 sm:text-lg truncate">{round.name}</h3>
+          <h3 className="text-base font-bold text-slate-800 sm:text-lg truncate">{showRoundName ? round.name : "Kết quả bình chọn"}</h3>
           <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusInfo.cls}`}>
             {statusInfo.label}
           </span>
@@ -99,6 +99,37 @@ export default function RoundSummaryCard({ code, round, teams, isCurrentRound, o
 
       {totalVotes === 0 && round.status !== "pending" ? (
         <p className="mt-3 text-center text-xs text-slate-400">Chưa có phiếu bầu</p>
+      ) : null}
+
+      {questions.length > 0 ? (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Chi tiết theo câu hỏi</p>
+          <div className="space-y-2.5">
+            {questions.map((q) => {
+              const questionTotal = q.voteTotal || 0;
+              return (
+                <div key={q.id} className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-700">{q.text || "Câu hỏi"}</p>
+                    <span className="shrink-0 text-xs font-medium text-slate-500 tabular-nums">{questionTotal} phiếu</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sortedTeams.map((team) => {
+                      const count = q.voteCounts?.[team.id] || 0;
+                      const pct = questionTotal > 0 ? Math.round((count / questionTotal) * 100) : 0;
+                      return (
+                        <span key={`${q.id}_${team.id}`} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color }} />
+                          {team.name}: {count} ({pct}%)
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
     </motion.div>
   );

@@ -184,7 +184,7 @@ export async function nextRound(code) {
 
 /* ── resetSessionRun ──────────────────────────────────── */
 
-export async function resetSessionRun(code, teams) {
+export async function resetSessionRun(code) {
   const sessionRef = doc(db, "sessions", code);
   const [sessionSnap, orderedRounds] = await Promise.all([getDoc(sessionRef), loadOrderedRounds(code)]);
   if (!sessionSnap.exists()) return false;
@@ -209,12 +209,10 @@ export async function resetSessionRun(code, teams) {
       });
     });
 
-    // Delete shards + votes (outside batch since they can exceed 500 ops)
+    // Delete shards (outside batch since they can exceed 500 ops)
     for (const qDoc of questions) {
       const shardsSnap = await getDocs(collection(db, "sessions", code, "rounds", roundDoc.id, "questions", qDoc.id, "shards"));
       await Promise.all(shardsSnap.docs.map((d) => deleteDoc(d.ref)));
-      const votesSnap = await getDocs(collection(db, "sessions", code, "rounds", roundDoc.id, "questions", qDoc.id, "votes"));
-      await Promise.all(votesSnap.docs.map((d) => deleteDoc(d.ref)));
     }
   }
 

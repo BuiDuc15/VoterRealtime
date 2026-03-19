@@ -15,8 +15,8 @@ export function shardRef(code, roundId, questionId, shardId) {
   return doc(db, "sessions", code, "rounds", roundId, "questions", questionId, "shards", String(shardId));
 }
 
-export function voteRef(code, roundId, questionId, voterToken) {
-  return doc(db, "sessions", code, "rounds", roundId, "questions", questionId, "votes", voterToken);
+export function voteRef(code, roundId, questionId, voterToken, runVersion = 1) {
+  return doc(db, "sessions", code, "rounds", roundId, "questions", questionId, "votes", `${voterToken}_v${runVersion}`);
 }
 
 export function questionRef(code, roundId, questionId) {
@@ -24,10 +24,10 @@ export function questionRef(code, roundId, questionId) {
 }
 
 // Core submit — 1 attempt
-async function attemptVote(code, roundId, questionId, voterToken, choices) {
+async function attemptVote(code, roundId, questionId, voterToken, choices, runVersion = 1) {
   const shardId = getShardId(voterToken);
   const sRef = shardRef(code, roundId, questionId, shardId);
-  const vRef = voteRef(code, roundId, questionId, voterToken);
+  const vRef = voteRef(code, roundId, questionId, voterToken, runVersion);
   const qRef = questionRef(code, roundId, questionId);
 
   await runTransaction(db, async (tx) => {
@@ -57,10 +57,10 @@ async function attemptVote(code, roundId, questionId, voterToken, choices) {
 }
 
 // Submit với exponential backoff retry
-export async function submitVoteWithRetry(code, roundId, questionId, voterToken, choices) {
+export async function submitVoteWithRetry(code, roundId, questionId, voterToken, choices, runVersion = 1) {
   for (let attempt = 0; attempt < MAX_VOTE_RETRIES; attempt++) {
     try {
-      await attemptVote(code, roundId, questionId, voterToken, choices);
+      await attemptVote(code, roundId, questionId, voterToken, choices, runVersion);
       return { success: true };
     } catch (err) {
       // Lỗi logic — không retry

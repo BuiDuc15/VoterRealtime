@@ -45,6 +45,7 @@ export default function CreateSessionForm() {
         status: "waiting",
         teams,
         show_round_label: false,
+        group_results_by_round: true,
         current_round_id: null,
         current_question_id: null,
         online_count: 0,

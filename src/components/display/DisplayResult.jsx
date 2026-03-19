@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import RoundSummaryCard from "./RoundSummaryCard";
+import { useRoundAggregatedVotes } from "../../hooks/useRoundAggregatedVotes";
 
 /* ── helpers ─────────────────────────────────────────── */
 function getGridClass(count) {
@@ -8,6 +9,62 @@ function getGridClass(count) {
   if (count === 2) return "grid grid-cols-1 lg:grid-cols-2 gap-5";
   if (count === 3) return "grid grid-cols-1 md:grid-cols-3 gap-5";
   return "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5";
+}
+
+function RoundDataCollector({ code, round, onData }) {
+  const { teamTotals, totalVotes, questions } = useRoundAggregatedVotes(code, round.id);
+
+  useEffect(() => {
+    onData?.(round.id, { teamTotals, totalVotes, questions, roundName: round.name, roundOrder: round.order || 0 });
+  }, [round.id, round.name, round.order, teamTotals, totalVotes, questions, onData]);
+
+  return null;
+}
+
+function QuestionSummarySection({ questions, teams, showRoundLabel }) {
+  if (!questions.length) return null;
+
+  const sortedTeams = [...teams].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-base font-bold text-slate-800 sm:text-lg">Thống kê theo câu hỏi</h3>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{questions.length} câu</span>
+      </div>
+
+      <div className="space-y-3">
+        {questions.map((q) => {
+          const total = q.voteTotal || 0;
+          return (
+            <div key={q.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-800 sm:text-base">{q.text || "Câu hỏi"}</p>
+                <span className="shrink-0 text-xs font-semibold text-slate-500 tabular-nums">{total} phiếu</span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {sortedTeams.map((team) => {
+                  const count = q.voteCounts?.[team.id] || 0;
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                  return (
+                    <span key={`${q.id}_${team.id}`} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600 sm:text-xs">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: team.color }} />
+                      {team.name}: {count} ({pct}%)
+                    </span>
+                  );
+                })}
+              </div>
+
+              {showRoundLabel && q.roundName ? (
+                <p className="mt-2 text-[11px] text-slate-400">Round: {q.roundName}</p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /* ── FinalResultSection (inline) ─────────────────────── */
@@ -98,15 +155,29 @@ function FinalResultSection({ teams, sessionTotals, sessionTotal, sessionStatus 
 }
 
 /* ── Main ─────────────────────────────────────────────── */
-export default function DisplayResult({ code, rounds, teams, currentRoundId, showRoundLabel, currentRoundName, sessionStatus }) {
+export default function DisplayResult({ code, rounds, teams, currentRoundId, showRoundLabel, currentRoundName, sessionStatus, groupResultsByRound = true }) {
   // Collect per-round data bubbled up from RoundSummaryCards
   const [allRoundData, setAllRoundData] = useState({});
 
-  const handleData = useCallback((roundId, teamTotals, totalVotes) => {
+  useEffect(() => {
+    const roundIds = new Set(rounds.map((r) => r.id));
+    setAllRoundData((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([rid]) => roundIds.has(rid)));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [rounds]);
+
+  const handleData = useCallback((roundId, payload) => {
     setAllRoundData((prev) => {
       const cur = prev[roundId];
-      if (cur?.totalVotes === totalVotes && cur?.teamTotals === teamTotals) return prev;
-      return { ...prev, [roundId]: { teamTotals, totalVotes } };
+      if (
+        cur?.totalVotes === payload.totalVotes
+        && cur?.teamTotals === payload.teamTotals
+        && cur?.questions === payload.questions
+      ) {
+        return prev;
+      }
+      return { ...prev, [roundId]: payload };
     });
   }, []);
 
@@ -121,7 +192,20 @@ export default function DisplayResult({ code, rounds, teams, currentRoundId, sho
     return { sessionTotals: totals, sessionTotal: total };
   }, [allRoundData]);
 
-  const endedRounds  = rounds.filter((r) => r.status === "ended").length;
+  const allQuestions = useMemo(() => {
+    return rounds
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .flatMap((round) => {
+        const questions = allRoundData[round.id]?.questions || [];
+        return questions
+          .slice()
+          .sort((a, b) => (a.order || 0) - (b.order || 0))
+          .map((q) => ({ ...q, roundName: round.name, roundOrder: round.order || 0 }));
+      });
+  }, [allRoundData, rounds]);
+
+  const endedRounds = rounds.filter((r) => r.status === "ended").length;
   const activeRounds = rounds.filter((r) => r.status === "active").length;
   const pendingRounds = rounds.filter((r) => r.status === "pending").length;
 
@@ -132,6 +216,12 @@ export default function DisplayResult({ code, rounds, teams, currentRoundId, sho
     <div className="w-full">
       <div className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6">
 
+        {!groupResultsByRound
+          ? rounds.map((round) => (
+            <RoundDataCollector key={round.id} code={code} round={round} onData={handleData} />
+          ))
+          : null}
+
         {/* ── Final / Live Summary ── */}
         <FinalResultSection
           teams={teams}
@@ -140,50 +230,62 @@ export default function DisplayResult({ code, rounds, teams, currentRoundId, sho
           sessionStatus={sessionStatus}
         />
 
-        {/* ── Round header strip ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div>
-            <h3 className="text-base font-bold text-slate-700 sm:text-lg">
-              Chi tiết theo từng vòng
-              {showRoundLabel && currentRoundName ? (
-                <span className="ml-2 text-sm font-normal text-slate-400">· Hiện tại: {currentRoundName}</span>
-              ) : null}
-            </h3>
-          </div>
-          <div className="flex gap-2 text-xs">
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-600">{rounds.length} vòng</span>
-            {endedRounds  > 0 ? <span className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700">{endedRounds} xong</span>  : null}
-            {activeRounds > 0 ? <span className="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700">{activeRounds} đang chạy</span> : null}
-            {pendingRounds > 0 ? <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-500">{pendingRounds} chờ</span>        : null}
-          </div>
-        </div>
+        {groupResultsByRound ? (
+          <>
+            {(rounds.length > 1 || showRoundLabel) ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                <div>
+                  <h3 className="text-base font-bold text-slate-700 sm:text-lg">
+                    Chi tiết theo từng vòng
+                    {showRoundLabel && currentRoundName ? (
+                      <span className="ml-2 text-sm font-normal text-slate-400">· Hiện tại: {currentRoundName}</span>
+                    ) : null}
+                  </h3>
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-medium text-slate-600">{rounds.length} vòng</span>
+                  {endedRounds > 0 ? <span className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700">{endedRounds} xong</span> : null}
+                  {activeRounds > 0 ? <span className="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700">{activeRounds} đang chạy</span> : null}
+                  {pendingRounds > 0 ? <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-500">{pendingRounds} chờ</span> : null}
+                </div>
+              </div>
+            ) : null}
 
-        {/* ── Round cards ── */}
-        {singleRound ? (
-          <div className="flex justify-center">
-            <div className="w-full max-w-2xl">
-              <RoundSummaryCard
-                code={code}
-                round={rounds[0]}
-                teams={teams}
-                isCurrentRound={rounds[0].id === currentRoundId}
-                onData={handleData}
-              />
-            </div>
-          </div>
+            {singleRound ? (
+              <div className="flex justify-center">
+                <div className="w-full max-w-2xl">
+                  <RoundSummaryCard
+                    code={code}
+                    round={rounds[0]}
+                    teams={teams}
+                    isCurrentRound={rounds[0].id === currentRoundId}
+                    onData={handleData}
+                    showRoundName={showRoundLabel || rounds.length > 1}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className={gridClass}>
+                {rounds.map((round) => (
+                  <RoundSummaryCard
+                    key={round.id}
+                    code={code}
+                    round={round}
+                    teams={teams}
+                    isCurrentRound={round.id === currentRoundId}
+                    onData={handleData}
+                    showRoundName={true}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className={gridClass}>
-            {rounds.map((round) => (
-              <RoundSummaryCard
-                key={round.id}
-                code={code}
-                round={round}
-                teams={teams}
-                isCurrentRound={round.id === currentRoundId}
-                onData={handleData}
-              />
-            ))}
-          </div>
+          <QuestionSummarySection
+            questions={allQuestions}
+            teams={teams}
+            showRoundLabel={showRoundLabel || rounds.length > 1}
+          />
         )}
 
         {rounds.length === 0 ? (

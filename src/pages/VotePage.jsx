@@ -47,6 +47,10 @@ export default function VotePage() {
   const runVersion = session?.session_version ?? 1;
   const voteKeyPrefix = `${code}_v${runVersion}`;
 
+  useEffect(() => {
+    setVotedMap({});
+  }, [voteKeyPrefix]);
+
   // Lớp 1: localStorage guard
   const voteKey = roundId && questionId ? `voted_${voteKeyPrefix}_${roundId}_${questionId}` : null;
   const hasVoted = Boolean(questionId && voteKey && (votedMap[questionId] || localStorage.getItem(voteKey) === "true"));
@@ -75,7 +79,7 @@ export default function VotePage() {
     }
 
     // Lớp 2+3+4: submitVoteWithRetry (idempotency + status check + retry)
-    const result = await submitVoteWithRetry(code, roundId, questionId, voterToken, choices);
+    const result = await submitVoteWithRetry(code, roundId, questionId, voterToken, choices, runVersion);
 
     if (result.success) {
       localStorage.setItem(`voted_${voteKeyPrefix}_${roundId}_${questionId}`, "true");
@@ -100,8 +104,8 @@ export default function VotePage() {
   if (!session) return <WaitingScreen message="Phiên bình chọn không tồn tại" />;
   if (session.status === "waiting") return <WaitingScreen message="Sự kiện chưa bắt đầu" sub="Vui lòng chờ admin bắt đầu phiên..." />;
   if (session.status === "ended") return <WaitingScreen message="Cảm ơn bạn đã tham gia! 🎉" />;
-  if (!currentQuestion || currentQuestion.status === "pending") return <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
-  if (currentQuestion.status === "closed") return <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
+  if (!currentQuestion || currentQuestion.status === "pending") return <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
+  if (currentQuestion.status === "closed") return <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
 
   if (hasVoted && currentQuestion.auto_next) return <WaitingScreen message="Đã gửi bình chọn. Đang chuyển câu tiếp..." />;
 
@@ -109,7 +113,7 @@ export default function VotePage() {
     return (
       <div className="min-h-screen bg-white">
         <ResultsPreview code={code} roundId={roundId} question={currentQuestion} teams={session.teams} myChoices={myChoices} />
-        <VoteHistory code={code} teams={session.teams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
       </div>
     );
   }
