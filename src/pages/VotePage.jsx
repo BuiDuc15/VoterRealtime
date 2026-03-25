@@ -12,6 +12,7 @@ import VoteCard from "../components/voter/VoteCard";
 import ResultsPreview from "../components/voter/ResultsPreview";
 import VoteHistory from "../components/voter/VoteHistory";
 import { submitVoteWithRetry } from "../utils/sharding";
+import { nextQuestion } from "../utils/sessionFlow";
 
 const VOTE_ERROR_MESSAGES = {
   already_voted: "Bạn đã vote câu này rồi.",
@@ -96,14 +97,25 @@ export default function VotePage() {
       localStorage.setItem(`choice_${voteKeyPrefix}_${roundId}_${questionId}`, JSON.stringify(choices));
       setVotedMap((prev) => ({ ...prev, [questionId]: true }));
 
+      // Theo yêu cầu: mode câu hỏi Auto sẽ chuyển câu ngay khi có voter submit thành công.
+      if (currentQuestion?.auto_next) {
+        try {
+          const moved = await nextQuestion(code, roundId, questionId);
+          if (!moved) {
+            // Retry ngắn để giảm miss do race snapshot giữa nhiều client.
+            setTimeout(() => {
+              nextQuestion(code, roundId, questionId).catch(() => {});
+            }, 350);
+          }
+        } catch {
+          // Ignore: UI vẫn lắng nghe realtime và sẽ cập nhật khi phiên chuyển câu.
+        }
+      }
+
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", () => window.history.pushState(null, "", window.location.href));
 
-      // NOTE: Không gọi nextQuestion() tại đây!
-      // Việc chuyển câu hỏi là trách nhiệm của admin (useAutoNextQuestion hook ở AdminPage
-      // dựa trên timer ends_at) hoặc admin thao tác tay. Nếu voter tự gọi nextQuestion(),
-      // câu hỏi sẽ đóng ngay sau khi người đầu tiên vote, khiến những người khác không
-      // thể vote được nữa.
+      // Manual mode vẫn do admin hoặc timer/session flow điều khiển.
     } else {
       setSubmitError(VOTE_ERROR_MESSAGES[result.reason] || "Có lỗi xảy ra.");
     }
