@@ -17,34 +17,40 @@ import { useEffect, useRef } from "react";
 export function useAutoNextQuestion({
   currentQuestion,
   enabled = true,
+  allVoted = false,
   onNextQuestion,
 }) {
-  const triggered = useRef(false);
+  const firedQuestionId = useRef(null);
 
   useEffect(() => {
     if (!enabled || !currentQuestion || currentQuestion.status !== "open" || !currentQuestion.auto_next) {
-      triggered.current = false;
+      return undefined;
+    }
+
+    const fireOnce = () => {
+      if (firedQuestionId.current === currentQuestion.id) return;
+      firedQuestionId.current = currentQuestion.id;
+      onNextQuestion?.();
+    };
+
+    // In auto mode, move immediately when every online voter has voted.
+    if (allVoted) {
+      fireOnce();
       return undefined;
     }
 
     if (!currentQuestion.ends_at) {
-      triggered.current = false;
       return undefined;
     }
-
-    triggered.current = false;
     const diff = currentQuestion.ends_at.toMillis() - Date.now();
 
     if (diff <= 0) {
-      onNextQuestion?.();
+      fireOnce();
       return undefined;
     }
 
     const timer = setTimeout(() => {
-      if (!triggered.current) {
-        triggered.current = true;
-        onNextQuestion?.();
-      }
+      fireOnce();
     }, diff);
 
     return () => clearTimeout(timer);
@@ -54,6 +60,7 @@ export function useAutoNextQuestion({
     currentQuestion?.status,
     currentQuestion?.auto_next,
     currentQuestion?.ends_at,
+    allVoted,
     onNextQuestion,
   ]);
 }

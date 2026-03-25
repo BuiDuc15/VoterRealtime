@@ -19,6 +19,7 @@ import { useAutoNextQuestion } from "../hooks/useAutoNextQuestion";
 import { useAutoNextRound } from "../hooks/useAutoNextRound";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
+import { useShardedVoteCounts } from "../hooks/useShardedVoteCounts";
 import { nextQuestion, nextRound, resetSessionRun, startSessionRun } from "../utils/sessionFlow";
 
 const TABS = [
@@ -42,12 +43,14 @@ export default function AdminPage() {
   const { rounds, loading: roundsLoading } = useRounds(code);
   const onlineCount = useOnlineCount(code);
   const currentQuestion = useCurrentQuestion(code, session);
+  const { total: currentVoteTotal } = useShardedVoteCounts(code, session?.current_round_id, session?.current_question_id);
 
   const contentRoundId = selectedRoundId || session?.current_round_id || rounds[0]?.id || null;
   const { questions: contentQuestions } = useQuestions(code, contentRoundId);
   const { questions: currentRoundQuestions } = useQuestions(code, session?.current_round_id || null);
 
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
+  const allVoted = onlineCount > 0 && currentVoteTotal >= onlineCount;
 
   useEffect(() => { if (!selectedRoundId && rounds[0]?.id) setSelectedRoundId(rounds[0].id); }, [rounds, selectedRoundId]);
 
@@ -55,6 +58,7 @@ export default function AdminPage() {
   useAutoNextQuestion({
     currentQuestion,
     enabled: session?.status === "active",
+    allVoted,
     onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
   });
 

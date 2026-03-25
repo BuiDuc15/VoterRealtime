@@ -11,6 +11,7 @@ import { useAutoNextRound } from "../hooks/useAutoNextRound";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
+import { useShardedVoteCounts } from "../hooks/useShardedVoteCounts";
 import { nextQuestion, nextRound } from "../utils/sessionFlow";
 
 export default function DisplayPage() {
@@ -19,6 +20,7 @@ export default function DisplayPage() {
   const { rounds, loading: roundsLoading } = useRounds(code);
   const onlineCount = useOnlineCount(code);
   const currentQuestion = useCurrentQuestion(code, session);
+  const { total: currentVoteTotal } = useShardedVoteCounts(code, session?.current_round_id, session?.current_question_id);
   const [showEndCelebration, setShowEndCelebration] = useState(false);
   const [sessionSummary, setSessionSummary] = useState(null);
   const prevStatusRef = useRef();
@@ -38,10 +40,12 @@ export default function DisplayPage() {
     : null;
 
   const statusLabel = session?.status === "ended" ? "Đã kết thúc" : session?.status === "active" ? "Đang diễn ra" : "Chờ bắt đầu";
+  const allVoted = onlineCount > 0 && currentVoteTotal >= onlineCount;
 
   useAutoNextQuestion({
     currentQuestion,
     enabled: session?.status === "active",
+    allVoted,
     onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
   });
 
