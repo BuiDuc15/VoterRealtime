@@ -17,7 +17,6 @@ import { useEffect, useRef } from "react";
 export function useAutoNextQuestion({
   currentQuestion,
   enabled = true,
-  allVoted = false,
   onNextQuestion,
 }) {
   const firedQuestionId = useRef(null);
@@ -32,12 +31,6 @@ export function useAutoNextQuestion({
       firedQuestionId.current = currentQuestion.id;
       onNextQuestion?.();
     };
-
-    // In auto mode, move immediately when every online voter has voted.
-    if (allVoted) {
-      fireOnce();
-      return undefined;
-    }
 
     if (!currentQuestion.ends_at) {
       return undefined;
@@ -60,7 +53,6 @@ export function useAutoNextQuestion({
     currentQuestion?.status,
     currentQuestion?.auto_next,
     currentQuestion?.ends_at,
-    allVoted,
     onNextQuestion,
   ]);
 }
