@@ -29,7 +29,6 @@ export default function VotePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [votedMap, setVotedMap] = useState({});
-  const [autoSubmittedQuestionId, setAutoSubmittedQuestionId] = useState(null);
 
   useVoterPresence(code, voterToken);
 
@@ -60,15 +59,7 @@ export default function VotePage() {
 
   useEffect(() => {
     setVotedMap({});
-    setAutoSubmittedQuestionId(null);
   }, [voteKeyPrefix]);
-
-  useEffect(() => {
-    if (!questionId || autoSubmittedQuestionId == null) return;
-    if (questionId !== autoSubmittedQuestionId || currentQuestion?.status !== "open") {
-      setAutoSubmittedQuestionId(null);
-    }
-  }, [questionId, currentQuestion?.status, autoSubmittedQuestionId]);
 
   // Lớp 1: localStorage guard
   const voteKey = roundId && questionId ? `voted_${voteKeyPrefix}_${roundId}_${questionId}` : null;
@@ -104,7 +95,6 @@ export default function VotePage() {
       localStorage.setItem(`voted_${voteKeyPrefix}_${roundId}_${questionId}`, "true");
       localStorage.setItem(`choice_${voteKeyPrefix}_${roundId}_${questionId}`, JSON.stringify(choices));
       setVotedMap((prev) => ({ ...prev, [questionId]: true }));
-      if (currentQuestion?.auto_next) setAutoSubmittedQuestionId(questionId);
 
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", () => window.history.pushState(null, "", window.location.href));
@@ -128,7 +118,7 @@ export default function VotePage() {
   if (!currentQuestion || currentQuestion.status === "pending") return <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
   if (currentQuestion.status === "closed") return <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
 
-  if (hasVoted && currentQuestion.status === "open" && currentQuestion.auto_next && autoSubmittedQuestionId === questionId) {
+  if (hasVoted && currentQuestion.status === "open" && currentQuestion.auto_next) {
     return (
       <WaitingScreen message="Đã gửi bình chọn, đang chờ câu tiếp theo..." sub="Câu hỏi sẽ tự cập nhật khi phiên chuyển câu.">
         <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
