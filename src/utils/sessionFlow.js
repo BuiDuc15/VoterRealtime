@@ -40,11 +40,16 @@ export async function startSessionRun(code) {
   if (!sessionSnap.exists()) return false;
 
   const firstRound = orderedRounds.find((d) => d.data().status === "pending");
-  let firstQuestionDoc = null;
+  let firstRoundQuestions = [];
   if (firstRound) {
-    const questions = await loadOrderedQuestions(code, firstRound.id);
-    firstQuestionDoc = questions.find((d) => d.data().status === "pending") || null;
+    firstRoundQuestions = await loadOrderedQuestions(code, firstRound.id);
   }
+  const firstQuestionDoc = firstRoundQuestions.find((d) => d.data().status === "pending") || null;
+
+  // Collect OTHER auto_next questions that should also be opened simultaneously
+  const otherAutoQDocs = firstRoundQuestions.filter(
+    (d) => d.id !== firstQuestionDoc?.id && d.data().auto_next && d.data().status === "pending"
+  );
 
   // Transaction: only reads needed for validation, then writes
   await runTransaction(db, async (tx) => {
@@ -53,6 +58,13 @@ export async function startSessionRun(code) {
     if (!liveSession.exists()) return;
     const liveFirstRound = firstRound ? await tx.get(firstRound.ref) : null;
     const liveFirstQuestion = firstQuestionDoc ? await tx.get(firstQuestionDoc.ref) : null;
+
+    // Read all other auto questions
+    const liveAutoQs = [];
+    for (const qDoc of otherAutoQDocs) {
+      liveAutoQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+    }
+
     const sessionData = liveSession.data();
 
     // Writes
@@ -74,6 +86,16 @@ export async function startSessionRun(code) {
         ends_at: questionEndsAt(liveFirstQuestion.data(), sessionData.default_question_duration),
       });
     }
+
+    // Open all other auto_next questions simultaneously
+    for (const { ref, live } of liveAutoQs) {
+      if (live.exists()) {
+        tx.update(ref, {
+          status: "open",
+          ends_at: questionEndsAt(live.data(), sessionData.default_question_duration),
+        });
+      }
+    }
   });
 
   return true;
@@ -91,9 +113,19 @@ export async function nextQuestion(code, currentRoundId, currentQuestionId) {
   // Pre-read
   const orderedQuestions = await loadOrderedQuestions(code, currentRoundId);
   const currentQDoc = orderedQuestions.find((d) => d.id === currentQuestionId);
-  const nextQDoc = orderedQuestions.find(
-    (d) => d.data().status === "pending" && (d.data().order || 0) > (currentQDoc?.data().order ?? -1)
+  const currentOrder = currentQDoc?.data().order ?? -1;
+
+  // Find next question: first try pending, then already-open (auto questions opened at round start)
+  const nextPendingQ = orderedQuestions.find(
+    (d) => d.data().status === "pending" && (d.data().order || 0) > currentOrder
   );
+  const nextOpenQ = !nextPendingQ
+    ? orderedQuestions.find(
+        (d) => d.id !== currentQuestionId && d.data().status === "open" && (d.data().order || 0) > currentOrder
+      )
+    : null;
+  const nextQDoc = nextPendingQ || nextOpenQ;
+  const nextQIsAlreadyOpen = !nextPendingQ && !!nextOpenQ;
 
   if (!currentQDoc) return false;
 
@@ -113,12 +145,29 @@ export async function nextQuestion(code, currentRoundId, currentQuestionId) {
     tx.update(currentQRef, { status: "closed", ends_at: null });
 
     if (nextQDoc && liveNextQ?.exists()) {
-      tx.update(nextQDoc.ref, { status: "open", ends_at: questionEndsAt(liveNextQ.data(), s.default_question_duration) });
+      if (!nextQIsAlreadyOpen) {
+        // Open the pending question
+        tx.update(nextQDoc.ref, { status: "open", ends_at: questionEndsAt(liveNextQ.data(), s.default_question_duration) });
+      }
       tx.update(sessionRef, { current_question_id: nextQDoc.id });
       return false; // no round advance needed
     }
 
-    // No more questions in this round
+    // No more pending/open questions after current — check if any other question is still open
+    const anyStillOpen = orderedQuestions.some(
+      (d) => d.id !== currentQuestionId && d.data().status === "open"
+    );
+
+    if (anyStillOpen) {
+      // Other auto questions still open for voters — don't end round
+      const firstOpenOther = orderedQuestions.find(
+        (d) => d.id !== currentQuestionId && d.data().status === "open"
+      );
+      tx.update(sessionRef, { current_question_id: firstOpenOther ? firstOpenOther.id : null });
+      return false;
+    }
+
+    // All done — end round
     tx.update(liveRound.ref, { status: "ended", ends_at: null });
     tx.update(sessionRef, { current_question_id: null });
     return Boolean(liveRound.data().auto_next);
@@ -150,13 +199,23 @@ export async function nextRound(code) {
     (d) => d.data().status === "pending" && (d.data().order || 0) > (currentRoundDoc.data().order || -1)
   );
 
+  // Load ALL questions for the next round so we can open auto ones
+  let nextRoundQuestions = [];
   let nextQDoc = null;
   if (nextRoundDoc) {
-    const questions = await loadOrderedQuestions(code, nextRoundDoc.id);
-    nextQDoc = questions.find((d) => d.data().status === "pending") || null;
+    nextRoundQuestions = await loadOrderedQuestions(code, nextRoundDoc.id);
+    nextQDoc = nextRoundQuestions.find((d) => d.data().status === "pending") || null;
   }
 
-  // Optionally need to close current question
+  // Other auto questions in next round (besides the first one)
+  const otherAutoQDocs = nextRoundQuestions.filter(
+    (d) => d.id !== nextQDoc?.id && d.data().auto_next && d.data().status === "pending"
+  );
+
+  // Close ALL still-open questions in current round
+  const currentRoundQuestions = await loadOrderedQuestions(code, currentRoundId);
+  const openCurrentQs = currentRoundQuestions.filter((d) => d.data().status === "open");
+
   const currentQRef = currentQuestionId
     ? doc(db, "sessions", code, "rounds", currentRoundId, "questions", currentQuestionId)
     : null;
@@ -169,15 +228,39 @@ export async function nextRound(code) {
     const liveNextRound = nextRoundDoc ? await tx.get(nextRoundDoc.ref) : null;
     const liveNextQ = nextQDoc ? await tx.get(nextQDoc.ref) : null;
 
+    // Read all open current round questions (to close them)
+    const liveOpenCurrentQs = [];
+    for (const qDoc of openCurrentQs) {
+      if (qDoc.id !== currentQuestionId) {
+        liveOpenCurrentQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+      }
+    }
+
+    // Read all auto questions in next round
+    const liveAutoQs = [];
+    for (const qDoc of otherAutoQDocs) {
+      liveAutoQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+    }
+
     if (!liveSession.exists()) return false;
     const s = liveSession.data();
     if (s.status !== "active" || s.current_round_id !== currentRoundId) return false;
     if (!liveCurrentRound.exists()) return false;
 
     // ALL writes after
+
+    // Close the globally-pointed current question
     if (liveCurrentQ?.exists() && liveCurrentQ.data().status === "open") {
       tx.update(currentQRef, { status: "closed", ends_at: null });
     }
+
+    // Close ALL other still-open questions in current round
+    for (const { ref, live } of liveOpenCurrentQs) {
+      if (live.exists() && live.data().status === "open") {
+        tx.update(ref, { status: "closed", ends_at: null });
+      }
+    }
+
     tx.update(currentRoundDoc.ref, { status: "ended", ends_at: null });
 
     if (!nextRoundDoc) {
@@ -191,8 +274,19 @@ export async function nextRound(code) {
     });
     tx.update(sessionRef, { current_round_id: nextRoundDoc.id, current_question_id: nextQDoc ? nextQDoc.id : null });
 
+    // Open the first question
     if (nextQDoc && liveNextQ?.exists()) {
       tx.update(nextQDoc.ref, { status: "open", ends_at: questionEndsAt(liveNextQ.data(), s.default_question_duration) });
+    }
+
+    // Open all other auto_next questions in next round simultaneously
+    for (const { ref, live } of liveAutoQs) {
+      if (live.exists()) {
+        tx.update(ref, {
+          status: "open",
+          ends_at: questionEndsAt(live.data(), s.default_question_duration),
+        });
+      }
     }
 
     return true;

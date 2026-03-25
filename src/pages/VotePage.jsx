@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
@@ -12,7 +12,6 @@ import VoteCard from "../components/voter/VoteCard";
 import ResultsPreview from "../components/voter/ResultsPreview";
 import VoteHistory from "../components/voter/VoteHistory";
 import { submitVoteWithRetry } from "../utils/sharding";
-import { nextQuestion } from "../utils/sessionFlow";
 
 const VOTE_ERROR_MESSAGES = {
   already_voted: "Bạn đã vote câu này rồi.",
@@ -25,7 +24,7 @@ export default function VotePage() {
   const { code } = useParams();
   const { session, loading } = useSession(code);
   const { rounds } = useRounds(code);
-  const currentQuestion = useCurrentQuestion(code, session);
+  const globalQuestion = useCurrentQuestion(code, session);
   const voterToken = useVoterToken();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -37,24 +36,11 @@ export default function VotePage() {
   const totalRounds = rounds.length;
   const showRoundLabel = totalRounds >= 2 || session?.show_round_label;
   const roundId = currentRound?.id;
-  const questionId = currentQuestion?.id;
-  const roundDuration = Number(currentRound?.duration) > 0
-    ? Number(currentRound.duration)
-    : Number(session?.default_round_duration) > 0
-    ? Number(session.default_round_duration)
-    : null;
-  const questionDuration = Number(currentQuestion?.duration) > 0
-    ? Number(currentQuestion.duration)
-    : Number(session?.default_question_duration) > 0
-    ? Number(session.default_question_duration)
-    : null;
 
-
+  // Load ALL questions for the current round (realtime)
   const { questions: allQuestionsRaw } = useQuestions(code, roundId);
   const allQuestions = useMemo(() => allQuestionsRaw.map((q) => ({ ...q, roundId })), [allQuestionsRaw, roundId]);
 
-  // session_version is bumped each time admin resets the session run,
-  // so old localStorage entries are automatically invalidated.
   const runVersion = session?.session_version ?? 1;
   const voteKeyPrefix = `${code}_v${runVersion}`;
 
@@ -62,7 +48,73 @@ export default function VotePage() {
     setVotedMap({});
   }, [voteKeyPrefix]);
 
-  // Lớp 1: localStorage guard
+  // Helper: check if this voter already voted on a specific question
+  const isVotedByMe = useCallback((qId) => {
+    if (!qId || !roundId) return false;
+    if (votedMap[qId]) return true;
+    return localStorage.getItem(`voted_${voteKeyPrefix}_${roundId}_${qId}`) === "true";
+  }, [votedMap, voteKeyPrefix, roundId]);
+
+  // ──────────────────────────────────────────────────────────
+  // LOCAL PROGRESSION: determine the "effective question" for THIS voter
+  //
+  // Auto mode (auto_next = true):
+  //   Tất cả câu auto được mở đồng thời khi round bắt đầu.
+  //   Mỗi voter tự lần lượt vote qua các câu auto theo thứ tự,
+  //   hoàn toàn cục bộ, không ảnh hưởng voter khác.
+  //   Vote xong câu auto → re-render → tự hiện câu auto tiếp theo.
+  //
+  // Manual mode (auto_next = false):
+  //   Voter chờ admin mở câu (global session.current_question_id).
+  //   Vote xong câu manual → hiện ResultsPreview → chờ admin chuyển.
+  // ──────────────────────────────────────────────────────────
+  const effectiveQuestion = useMemo(() => {
+    if (!roundId || !allQuestions.length) return globalQuestion;
+
+    // 1. Find the first OPEN auto_next question that this voter hasn't voted on
+    const nextAutoQ = allQuestions.find(
+      (q) => q.status === "open" && q.auto_next && !isVotedByMe(q.id)
+    );
+    if (nextAutoQ) return nextAutoQ;
+
+    // 2. If all auto questions are voted/none available, check global manual question
+    if (
+      globalQuestion &&
+      globalQuestion.status === "open" &&
+      !globalQuestion.auto_next &&
+      !isVotedByMe(globalQuestion.id)
+    ) {
+      return globalQuestion;
+    }
+
+    // 3. If voter already voted on the current global manual question, show results
+    if (
+      globalQuestion &&
+      globalQuestion.status === "open" &&
+      !globalQuestion.auto_next &&
+      isVotedByMe(globalQuestion.id)
+    ) {
+      return globalQuestion;
+    }
+
+    // 4. All auto questions done, no manual question open → null
+    return null;
+  }, [allQuestions, globalQuestion, isVotedByMe, roundId]);
+
+  const questionId = effectiveQuestion?.id;
+
+  const roundDuration = Number(currentRound?.duration) > 0
+    ? Number(currentRound.duration)
+    : Number(session?.default_round_duration) > 0
+    ? Number(session.default_round_duration)
+    : null;
+  const questionDuration = Number(effectiveQuestion?.duration) > 0
+    ? Number(effectiveQuestion.duration)
+    : Number(session?.default_question_duration) > 0
+    ? Number(session.default_question_duration)
+    : null;
+
+  // Vote status for effective question
   const voteKey = roundId && questionId ? `voted_${voteKeyPrefix}_${roundId}_${questionId}` : null;
   const hasVoted = Boolean(questionId && voteKey && (votedMap[questionId] || localStorage.getItem(voteKey) === "true"));
   const myChoices = questionId && roundId
@@ -79,17 +131,15 @@ export default function VotePage() {
   }, [hasVoted, questionId]);
 
   async function handleSubmit(choices) {
-    if (submitting) return; // debounce double-tap
+    if (submitting) return;
     setSubmitting(true);
     setSubmitError(null);
 
-    // Lớp 1: check lại trước khi gửi (race condition)
     if (localStorage.getItem(`voted_${voteKeyPrefix}_${roundId}_${questionId}`)) {
       setSubmitting(false);
       return;
     }
 
-    // Lớp 2+3+4: submitVoteWithRetry (idempotency + status check + retry)
     const result = await submitVoteWithRetry(code, roundId, questionId, voterToken, choices, runVersion);
 
     if (result.success) {
@@ -97,25 +147,13 @@ export default function VotePage() {
       localStorage.setItem(`choice_${voteKeyPrefix}_${roundId}_${questionId}`, JSON.stringify(choices));
       setVotedMap((prev) => ({ ...prev, [questionId]: true }));
 
-      // Theo yêu cầu: mode câu hỏi Auto sẽ chuyển câu ngay khi có voter submit thành công.
-      if (currentQuestion?.auto_next) {
-        try {
-          const moved = await nextQuestion(code, roundId, questionId);
-          if (!moved) {
-            // Retry ngắn để giảm miss do race snapshot giữa nhiều client.
-            setTimeout(() => {
-              nextQuestion(code, roundId, questionId).catch(() => {});
-            }, 350);
-          }
-        } catch {
-          // Ignore: UI vẫn lắng nghe realtime và sẽ cập nhật khi phiên chuyển câu.
-        }
-      }
+      // NOTE: Không gọi nextQuestion() ở voter!
+      // Ở mode auto, tất cả câu hỏi auto đã được mở sẵn khi round bắt đầu.
+      // Voter chỉ cần update votedMap → React re-render → effectiveQuestion
+      // tự động trỏ sang câu tiếp theo chưa vote. Hoàn toàn cục bộ,
+      // không ảnh hưởng voter khác.
 
       window.history.pushState(null, "", window.location.href);
-      window.addEventListener("popstate", () => window.history.pushState(null, "", window.location.href));
-
-      // Manual mode vẫn do admin hoặc timer/session flow điều khiển.
     } else {
       setSubmitError(VOTE_ERROR_MESSAGES[result.reason] || "Có lỗi xảy ra.");
     }
@@ -123,28 +161,54 @@ export default function VotePage() {
     setSubmitting(false);
   }
 
+  // ── Render logic ─────────────────────────────────────────
+
   if (loading) return <LoadingSpinner />;
   if (!session) return <WaitingScreen message="Phiên bình chọn không tồn tại" />;
   if (session.status === "waiting") return <WaitingScreen message="Sự kiện chưa bắt đầu" sub="Vui lòng chờ admin bắt đầu phiên..." />;
   if (session.status === "ended") return <WaitingScreen message="Cảm ơn bạn đã tham gia! 🎉" />;
-  if (!currentQuestion || currentQuestion.status === "pending") return <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
-  if (currentQuestion.status === "closed") return <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật"><VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} /></WaitingScreen>;
 
-  if (hasVoted && currentQuestion.status === "open" && currentQuestion.auto_next) {
+  // No effective question: voter has voted all available auto questions
+  if (!effectiveQuestion) {
+    // Check if there are still pending (manual or future) questions in this round
+    const hasPendingQuestions = allQuestions.some((q) => q.status === "pending" || (q.status === "open" && !q.auto_next));
+    const message = hasPendingQuestions
+      ? "Chờ câu hỏi tiếp theo..."
+      : "Bạn đã hoàn thành tất cả câu hỏi! 🎉";
+    const sub = hasPendingQuestions
+      ? "Admin sẽ mở câu tiếp theo, màn hình tự cập nhật"
+      : "Chờ vòng tiếp theo hoặc kết quả...";
     return (
-      <WaitingScreen message="Đã gửi bình chọn, đang chờ câu tiếp theo..." sub="Câu hỏi sẽ tự cập nhật khi phiên chuyển câu.">
+      <WaitingScreen message={message} sub={sub}>
         <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
 
-  if (hasVoted && currentQuestion.status === "open") {
+  if (effectiveQuestion.status === "pending") {
+    return (
+      <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật">
+        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+      </WaitingScreen>
+    );
+  }
+
+  if (effectiveQuestion.status === "closed") {
+    return (
+      <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật">
+        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+      </WaitingScreen>
+    );
+  }
+
+  // MANUAL mode: voter already voted on this manual question → show ResultsPreview, wait for admin
+  if (hasVoted && effectiveQuestion.status === "open" && !effectiveQuestion.auto_next) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/40">
         <ResultsPreview
           code={code}
           roundId={roundId}
-          question={currentQuestion}
+          question={effectiveQuestion}
           teams={session.teams}
           myChoices={myChoices}
           round={currentRound}
@@ -156,9 +220,10 @@ export default function VotePage() {
     );
   }
 
+  // Show voting card for the effective question
   return (
     <VoteCard
-      question={currentQuestion}
+      question={effectiveQuestion}
       teams={session.teams}
       showRoundLabel={showRoundLabel}
       roundName={currentRound?.name}
