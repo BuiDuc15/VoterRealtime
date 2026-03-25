@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { useParams, useNavigate } from "react-router-dom";
+import { makeEndsAt } from "../utils/timerHelpers";
 import { QRCodeSVG } from "qrcode.react";
 import AdminLogin from "../components/admin/AdminLogin";
 import TeamManager from "../components/admin/TeamManager";
@@ -50,6 +51,35 @@ export default function AdminPage() {
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
 
   useEffect(() => { if (!selectedRoundId && rounds[0]?.id) setSelectedRoundId(rounds[0].id); }, [rounds, selectedRoundId]);
+
+  // ── Self-healing: auto-open pending auto_next questions ──
+  // Khi round active mà có câu auto_next còn "pending", tự động mở chúng.
+  // Đảm bảo hoạt động đúng kể cả khi startSessionRun chạy với code cũ.
+  const autoOpenedRef = useRef(new Set());
+
+  useEffect(() => {
+    autoOpenedRef.current = new Set();
+  }, [session?.session_version]);
+
+  useEffect(() => {
+    if (session?.status !== "active" || !session?.current_round_id) return;
+
+    const pendingAutoQs = currentRoundQuestions.filter(
+      (q) => q.status === "pending" && q.auto_next && !autoOpenedRef.current.has(q.id)
+    );
+
+    if (pendingAutoQs.length === 0) return;
+
+    for (const q of pendingAutoQs) {
+      autoOpenedRef.current.add(q.id);
+      const dur = q.duration || session.default_question_duration || null;
+      const endsAt = dur ? makeEndsAt(Number(dur)) : null;
+      updateDoc(
+        doc(db, "sessions", code, "rounds", session.current_round_id, "questions", q.id),
+        { status: "open", ends_at: endsAt }
+      ).catch(() => {});
+    }
+  }, [session?.status, session?.current_round_id, session?.default_question_duration, currentRoundQuestions, code]);
 
   // Auto-next hooks
   useAutoNextQuestion({
