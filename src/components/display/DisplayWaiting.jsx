@@ -1,6 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 
-export default function DisplayWaiting({ sessionName, code, isEnded }) {
+export default function DisplayWaiting({ sessionName, code, isEnded, showQr = true, qrSize = 88 }) {
   const voteUrl = `${window.location.origin}/vote/${code}`;
 
   return (
@@ -10,9 +10,9 @@ export default function DisplayWaiting({ sessionName, code, isEnded }) {
       <p className="mt-3 text-base text-slate-500 sm:mt-4 sm:text-xl">
         {isEnded ? "Cảm ơn tất cả đã tham gia!" : "Sự kiện sắp bắt đầu..."}
       </p>
-      {!isEnded ? (
+      {!isEnded && showQr ? (
         <div className="fixed bottom-5 right-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-lg sm:bottom-7 sm:right-7 sm:p-4">
-          <QRCodeSVG value={voteUrl} size={88} bgColor="#ffffff" fgColor="#1e1b4b" />
+          <QRCodeSVG value={voteUrl} size={qrSize} bgColor="#ffffff" fgColor="#1e1b4b" />
           <p className="mt-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">Quét để vote</p>
         </div>
       ) : null}

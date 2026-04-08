@@ -44,12 +44,12 @@ export async function startSessionRun(code) {
   if (firstRound) {
     firstRoundQuestions = await loadOrderedQuestions(code, firstRound.id);
   }
+  const firstRoundIsAuto = firstRound?.data()?.question_flow_mode === "auto";
   const firstQuestionDoc = firstRoundQuestions.find((d) => d.data().status === "pending") || null;
 
-  // Collect OTHER auto_next questions that should also be opened simultaneously
-  const otherAutoQDocs = firstRoundQuestions.filter(
-    (d) => d.id !== firstQuestionDoc?.id && d.data().auto_next && d.data().status === "pending"
-  );
+  const autoOpenQDocs = firstRoundIsAuto
+    ? firstRoundQuestions.filter((d) => d.data().status === "pending")
+    : [];
 
   // Transaction: only reads needed for validation, then writes
   await runTransaction(db, async (tx) => {
@@ -59,9 +59,9 @@ export async function startSessionRun(code) {
     const liveFirstRound = firstRound ? await tx.get(firstRound.ref) : null;
     const liveFirstQuestion = firstQuestionDoc ? await tx.get(firstQuestionDoc.ref) : null;
 
-    // Read all other auto questions
+    // Read all auto-open questions (auto mode)
     const liveAutoQs = [];
-    for (const qDoc of otherAutoQDocs) {
+    for (const qDoc of autoOpenQDocs) {
       liveAutoQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
     }
 
@@ -71,7 +71,7 @@ export async function startSessionRun(code) {
     tx.update(sessionRef, {
       status: "active",
       current_round_id: firstRound ? firstRound.id : null,
-      current_question_id: firstQuestionDoc ? firstQuestionDoc.id : null,
+      current_question_id: firstRoundIsAuto ? null : (firstQuestionDoc ? firstQuestionDoc.id : null),
     });
 
     if (firstRound) {
@@ -80,14 +80,14 @@ export async function startSessionRun(code) {
         ends_at: liveFirstRound?.exists() ? roundEndsAt(liveFirstRound.data(), sessionData.default_round_duration) : null,
       });
     }
-    if (firstQuestionDoc && liveFirstQuestion?.exists()) {
+    if (!firstRoundIsAuto && firstQuestionDoc && liveFirstQuestion?.exists()) {
       tx.update(firstQuestionDoc.ref, {
         status: "open",
         ends_at: questionEndsAt(liveFirstQuestion.data(), sessionData.default_question_duration),
       });
     }
 
-    // Open all other auto_next questions simultaneously
+    // In auto mode, open all pending questions at once
     for (const { ref, live } of liveAutoQs) {
       if (live.exists()) {
         tx.update(ref, {
@@ -170,7 +170,7 @@ export async function nextQuestion(code, currentRoundId, currentQuestionId) {
     // All done — end round
     tx.update(liveRound.ref, { status: "ended", ends_at: null });
     tx.update(sessionRef, { current_question_id: null });
-    return Boolean(liveRound.data().auto_next);
+    return false;
   });
 
   if (shouldAdvanceRound) {
@@ -206,11 +206,11 @@ export async function nextRound(code) {
     nextRoundQuestions = await loadOrderedQuestions(code, nextRoundDoc.id);
     nextQDoc = nextRoundQuestions.find((d) => d.data().status === "pending") || null;
   }
+  const nextRoundIsAuto = nextRoundDoc?.data()?.question_flow_mode === "auto";
 
-  // Other auto questions in next round (besides the first one)
-  const otherAutoQDocs = nextRoundQuestions.filter(
-    (d) => d.id !== nextQDoc?.id && d.data().auto_next && d.data().status === "pending"
-  );
+  const autoOpenNextQDocs = nextRoundIsAuto
+    ? nextRoundQuestions.filter((d) => d.data().status === "pending")
+    : [];
 
   // Close ALL still-open questions in current round
   const currentRoundQuestions = await loadOrderedQuestions(code, currentRoundId);
@@ -236,9 +236,9 @@ export async function nextRound(code) {
       }
     }
 
-    // Read all auto questions in next round
+    // Read all auto-open questions in next round
     const liveAutoQs = [];
-    for (const qDoc of otherAutoQDocs) {
+    for (const qDoc of autoOpenNextQDocs) {
       liveAutoQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
     }
 
@@ -272,14 +272,14 @@ export async function nextRound(code) {
       status: "active",
       ends_at: liveNextRound?.exists() ? roundEndsAt(liveNextRound.data(), s.default_round_duration) : null,
     });
-    tx.update(sessionRef, { current_round_id: nextRoundDoc.id, current_question_id: nextQDoc ? nextQDoc.id : null });
+    tx.update(sessionRef, { current_round_id: nextRoundDoc.id, current_question_id: nextRoundIsAuto ? null : (nextQDoc ? nextQDoc.id : null) });
 
-    // Open the first question
-    if (nextQDoc && liveNextQ?.exists()) {
+    // Manual mode: open first question only
+    if (!nextRoundIsAuto && nextQDoc && liveNextQ?.exists()) {
       tx.update(nextQDoc.ref, { status: "open", ends_at: questionEndsAt(liveNextQ.data(), s.default_question_duration) });
     }
 
-    // Open all other auto_next questions in next round simultaneously
+    // Auto mode: open all questions in next round at once
     for (const { ref, live } of liveAutoQs) {
       if (live.exists()) {
         tx.update(ref, {
@@ -289,6 +289,42 @@ export async function nextRound(code) {
       }
     }
 
+    return true;
+  });
+}
+
+/* ── endCurrentRound ─────────────────────────────────── */
+
+export async function endCurrentRound(code) {
+  const sessionRef = doc(db, "sessions", code);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return false;
+
+  const session = sessionSnap.data();
+  const currentRoundId = session.current_round_id;
+  if (!currentRoundId) return false;
+
+  const roundRef = doc(db, "sessions", code, "rounds", currentRoundId);
+  const currentRoundQuestions = await loadOrderedQuestions(code, currentRoundId);
+  const openCurrentQs = currentRoundQuestions.filter((d) => d.data().status === "open");
+
+  return runTransaction(db, async (tx) => {
+    const liveSession = await tx.get(sessionRef);
+    const liveRound = await tx.get(roundRef);
+    if (!liveSession.exists() || !liveRound.exists()) return false;
+
+    const s = liveSession.data();
+    if (s.status !== "active" || s.current_round_id !== currentRoundId) return false;
+
+    for (const qDoc of openCurrentQs) {
+      const liveQ = await tx.get(qDoc.ref);
+      if (liveQ.exists() && liveQ.data().status === "open") {
+        tx.update(qDoc.ref, { status: "closed", ends_at: null });
+      }
+    }
+
+    tx.update(roundRef, { status: "ended", ends_at: null });
+    tx.update(sessionRef, { current_question_id: null });
     return true;
   });
 }

@@ -41,7 +41,7 @@ export default function QuestionList({ code, roundId, questions, currentQuestion
                 </div>
                 <p className="mt-0.5 text-sm font-semibold">{q.text}</p>
                 <p className="mt-0.5 text-xs text-gray-400">
-                  Kiểu vote: {q.vote_mode === "multi" ? "Nhiều" : "1"} · Timeout câu: {q.duration ? `${q.duration}s` : "không giới hạn"} · Mode câu: {q.auto_next ? "Auto" : "Manual"}
+                  Kiểu vote: {q.vote_mode === "multi" ? "Nhiều" : "1"} · Timeout câu: {q.duration ? `${q.duration}s` : "không giới hạn"}
                 </p>
               </div>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${q.status === "open" ? "bg-emerald-900/50 text-emerald-300" : q.status === "closed" ? "bg-gray-200 text-gray-500" : "bg-gray-100 text-gray-400"}`}>{q.status}</span>

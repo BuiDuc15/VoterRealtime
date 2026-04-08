@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { useParams, useNavigate } from "react-router-dom";
-import { makeEndsAt } from "../utils/timerHelpers";
 import { QRCodeSVG } from "qrcode.react";
 import AdminLogin from "../components/admin/AdminLogin";
 import TeamManager from "../components/admin/TeamManager";
@@ -17,10 +16,9 @@ import { useRounds } from "../hooks/useRounds";
 import { useQuestions } from "../hooks/useQuestions";
 import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
 import { useAutoNextQuestion } from "../hooks/useAutoNextQuestion";
-import { useAutoNextRound } from "../hooks/useAutoNextRound";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
-import { nextQuestion, nextRound, resetSessionRun, startSessionRun } from "../utils/sessionFlow";
+import { nextQuestion, resetSessionRun, startSessionRun } from "../utils/sessionFlow";
 
 const TABS = [
   { key: "control", label: "⚡ Điều khiển" },
@@ -28,6 +26,27 @@ const TABS = [
   { key: "settings", label: "⚙ Cài đặt" },
   { key: "links", label: "🔗 QR / Links" },
 ];
+
+/* ── Collapsible Section ── */
+function Section({ title, badge, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border bg-white overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 transition sm:px-5"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-bold text-gray-800 sm:text-lg">{title}</span>
+          {badge ? <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">{badge}</span> : null}
+        </div>
+        <span className={`text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>▼</span>
+      </button>
+      {open ? <div className="border-t px-4 py-3 sm:px-5 sm:py-4 space-y-3">{children}</div> : null}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const { code } = useParams();
@@ -49,50 +68,18 @@ export default function AdminPage() {
   const { questions: currentRoundQuestions } = useQuestions(code, session?.current_round_id || null);
 
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
+  const selectedRound = useMemo(() => rounds.find((r) => r.id === contentRoundId), [rounds, contentRoundId]);
 
   useEffect(() => { if (!selectedRoundId && rounds[0]?.id) setSelectedRoundId(rounds[0].id); }, [rounds, selectedRoundId]);
 
-  // ── Self-healing: auto-open pending auto_next questions ──
-  // Khi round active mà có câu auto_next còn "pending", tự động mở chúng.
-  // Đảm bảo hoạt động đúng kể cả khi startSessionRun chạy với code cũ.
-  const autoOpenedRef = useRef(new Set());
-
-  useEffect(() => {
-    autoOpenedRef.current = new Set();
-  }, [session?.session_version]);
-
-  useEffect(() => {
-    if (session?.status !== "active" || !session?.current_round_id) return;
-
-    const pendingAutoQs = currentRoundQuestions.filter(
-      (q) => q.status === "pending" && q.auto_next && !autoOpenedRef.current.has(q.id)
-    );
-
-    if (pendingAutoQs.length === 0) return;
-
-    for (const q of pendingAutoQs) {
-      autoOpenedRef.current.add(q.id);
-      const dur = q.duration || session.default_question_duration || null;
-      const endsAt = dur ? makeEndsAt(Number(dur)) : null;
-      updateDoc(
-        doc(db, "sessions", code, "rounds", session.current_round_id, "questions", q.id),
-        { status: "open", ends_at: endsAt }
-      ).catch(() => {});
-    }
-  }, [session?.status, session?.current_round_id, session?.default_question_duration, currentRoundQuestions, code]);
-
-  // Auto-next hooks
+  // Auto-next question only applies to manual round mode (admin-driven question pointer)
   useAutoNextQuestion({
     currentQuestion,
-    enabled: session?.status === "active",
+    enabled: session?.status === "active" && (currentRound?.question_flow_mode || "manual") !== "auto",
     onNextQuestion: async () => { await nextQuestion(code, session?.current_round_id, session?.current_question_id); },
   });
 
-  useAutoNextRound({
-    currentRound,
-    enabled: session?.status === "active",
-    onNextRound: async () => { await nextRound(code); },
-  });
+  // No auto-next round — admin always manually controls round transitions
 
   if (!authed) return <AdminLogin code={code} onSuccess={() => setAuthed(true)} />;
   if (loading || roundsLoading) return <LoadingSpinner label="Đang tải dashboard admin..." />;
@@ -126,7 +113,7 @@ export default function AdminPage() {
       {actionError ? <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 sm:px-6">{actionError}</div> : null}
 
       <div className="mx-auto flex max-w-7xl flex-col gap-4 p-3 sm:p-4 lg:flex-row">
-        {/* Sidebar — full width on mobile, fixed width on desktop */}
+        {/* Sidebar */}
         <div className="w-full space-y-3 sm:space-y-4 lg:w-60 lg:shrink-0">
           <div className="rounded-xl border bg-white p-3 sm:p-4">
             <div className="mb-2 flex items-center justify-between text-sm">
@@ -136,9 +123,11 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">Round: {rounds.filter((r) => r.status !== "pending").length} / {rounds.length}</p>
           </div>
           <div className="rounded-xl border bg-white p-3 sm:p-4">
-            <p className="mb-2 text-sm font-semibold text-gray-600">Đội tham gia</p>
+            <p className="mb-2 text-sm font-semibold text-gray-600">
+              {currentRound ? `Đội (${currentRound.name})` : "Đội tham gia"}
+            </p>
             <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-0">
-              {session.teams.map((t) => (
+              {(currentRound?.teams || session.teams).map((t) => (
                 <div key={t.id} className="flex items-center gap-2 py-0.5">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
                   <span className="text-sm">{t.name}</span>
@@ -165,35 +154,44 @@ export default function AdminPage() {
           ) : null}
 
           {tab === "content" ? (
-            <>
-              <RoundForm code={code} rounds={rounds} editingRound={editingRound} onDone={() => setEditingRound(null)} />
-              <RoundList code={code} rounds={rounds} currentRoundId={session.current_round_id} onEdit={(r) => { setSelectedRoundId(r.id); setEditingRound(r); }} />
-              <div className="rounded-xl border bg-white p-3 sm:p-4">
-                <p className="mb-2 text-sm font-semibold text-gray-700">Chọn round để cấu hình câu hỏi</p>
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {rounds.map((r) => (
-                    <button key={r.id} onClick={() => { setSelectedRoundId(r.id); setEditingQuestion(null); }} className={`rounded-lg border px-2.5 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm ${contentRoundId === r.id ? "border-gray-900 bg-gray-900 text-white" : "bg-white"}`}>{r.name}</button>
-                  ))}
+            <div className="space-y-4">
+              {/* ── ROUNDS SECTION ── */}
+              <Section title="📋 Quản lý Round" badge={`${rounds.length} round`} defaultOpen={true}>
+                <RoundForm code={code} rounds={rounds} editingRound={editingRound} onDone={() => setEditingRound(null)} sessionTeams={session.teams} sessionStatus={session.status} />
+                <RoundList code={code} rounds={rounds} currentRoundId={session.current_round_id} sessionStatus={session.status} onEdit={(r) => { setSelectedRoundId(r.id); setEditingRound(r); }} />
+              </Section>
+
+              {/* ── QUESTIONS SECTION ── */}
+              <Section
+                title={`❓ Câu hỏi ${selectedRound ? `— ${selectedRound.name}` : ""}`}
+                badge={contentQuestions.length > 0 ? `${contentQuestions.length} câu` : null}
+                defaultOpen={true}
+              >
+                {/* Round selector */}
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-gray-700">Chọn round</p>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    {rounds.map((r) => (
+                      <button key={r.id} onClick={() => { setSelectedRoundId(r.id); setEditingQuestion(null); }} className={`rounded-lg border px-2.5 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm ${contentRoundId === r.id ? "border-gray-900 bg-gray-900 text-white" : "bg-white hover:bg-gray-50"}`}>{r.name}</button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <QuestionForm code={code} roundId={contentRoundId} questions={contentQuestions} editingQuestion={editingQuestion} onDone={() => setEditingQuestion(null)} />
-              <QuestionList code={code} roundId={contentRoundId} questions={contentQuestions} currentQuestionId={session.current_question_id} onEdit={setEditingQuestion} />
-            </>
+                <QuestionForm code={code} roundId={contentRoundId} questions={contentQuestions} editingQuestion={editingQuestion} onDone={() => setEditingQuestion(null)} />
+                <QuestionList code={code} roundId={contentRoundId} questions={contentQuestions} currentQuestionId={session.current_question_id} onEdit={setEditingQuestion} />
+              </Section>
+            </div>
           ) : null}
 
           {tab === "settings" ? (
-            <>
-              <SessionTimeoutSettings code={code} session={session} />
-              <TeamManager code={code} teams={session.teams} sessionStatus={session.status} />
-              <div className="rounded-xl border bg-white p-3 sm:p-4">
-                <p className="mb-2 text-sm font-semibold text-gray-700">Hiển thị kết quả</p>
+            <div className="space-y-4">
+              <Section title="⏱ Timeout mặc định" defaultOpen={true}>
+                <SessionTimeoutSettings code={code} session={session} />
+              </Section>
+              <Section title="👥 Đội mẫu (mặc định cho round mới)" defaultOpen={false}>
+                <TeamManager code={code} teams={session.teams} sessionStatus={session.status} />
+              </Section>
+              <Section title="🎨 Hiển thị" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => updateDoc(doc(db, "sessions", code), { group_results_by_round: (session.group_results_by_round ?? true) ? false : true })}
-                    className="rounded-lg border px-3 py-1.5 text-xs sm:text-sm"
-                  >
-                    {(session.group_results_by_round ?? true) ? "Gộp kết quả theo danh sách câu hỏi" : "Phân nhóm kết quả theo round"}
-                  </button>
                   <button
                     onClick={() => updateDoc(doc(db, "sessions", code), { show_round_label: !session.show_round_label })}
                     className="rounded-lg border px-3 py-1.5 text-xs sm:text-sm"
@@ -201,8 +199,8 @@ export default function AdminPage() {
                     {session.show_round_label ? "Ẩn tên round khi chỉ có 1 round" : "Hiện tên round dù chỉ có 1 round"}
                   </button>
                 </div>
-              </div>
-            </>
+              </Section>
+            </div>
           ) : null}
 
           {tab === "links" ? (

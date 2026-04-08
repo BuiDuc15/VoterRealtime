@@ -33,6 +33,8 @@ export default function VotePage() {
   useVoterPresence(code, voterToken);
 
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
+  const isAutoRoundMode = (currentRound?.question_flow_mode || "manual") === "auto";
+  const roundTeams = useMemo(() => currentRound?.teams || session?.teams || [], [currentRound, session?.teams]);
   const totalRounds = rounds.length;
   const showRoundLabel = totalRounds >= 2 || session?.show_round_label;
   const roundId = currentRound?.id;
@@ -58,48 +60,37 @@ export default function VotePage() {
   // ──────────────────────────────────────────────────────────
   // LOCAL PROGRESSION: determine the "effective question" for THIS voter
   //
-  // Auto mode (auto_next = true):
-  //   Tất cả câu auto được mở đồng thời khi round bắt đầu.
+  // Auto mode (round.question_flow_mode = auto):
+  //   Tất cả câu được mở đồng thời khi round bắt đầu.
   //   Mỗi voter tự lần lượt vote qua các câu auto theo thứ tự,
   //   hoàn toàn cục bộ, không ảnh hưởng voter khác.
   //   Vote xong câu auto → re-render → tự hiện câu auto tiếp theo.
   //
-  // Manual mode (auto_next = false):
+  // Manual mode (round.question_flow_mode = manual):
   //   Voter chờ admin mở câu (global session.current_question_id).
   //   Vote xong câu manual → hiện ResultsPreview → chờ admin chuyển.
   // ──────────────────────────────────────────────────────────
   const effectiveQuestion = useMemo(() => {
     if (!roundId || !allQuestions.length) return globalQuestion;
 
-    // 1. Find the first OPEN auto_next question that this voter hasn't voted on
-    const nextAutoQ = allQuestions.find(
-      (q) => q.status === "open" && q.auto_next && !isVotedByMe(q.id)
-    );
-    if (nextAutoQ) return nextAutoQ;
+    if (isAutoRoundMode) {
+      // Auto mode: first open question not yet voted by this voter
+      const nextAutoQ = allQuestions.find((q) => q.status === "open" && !isVotedByMe(q.id));
+      return nextAutoQ || null;
+    }
 
-    // 2. If all auto questions are voted/none available, check global manual question
-    if (
-      globalQuestion &&
-      globalQuestion.status === "open" &&
-      !globalQuestion.auto_next &&
-      !isVotedByMe(globalQuestion.id)
-    ) {
+    // Manual mode: follow global current_question_id
+    if (globalQuestion && globalQuestion.status === "open" && !isVotedByMe(globalQuestion.id)) {
       return globalQuestion;
     }
 
-    // 3. If voter already voted on the current global manual question, show results
-    if (
-      globalQuestion &&
-      globalQuestion.status === "open" &&
-      !globalQuestion.auto_next &&
-      isVotedByMe(globalQuestion.id)
-    ) {
+    // If already voted current manual question, keep showing it for preview
+    if (globalQuestion && globalQuestion.status === "open" && isVotedByMe(globalQuestion.id)) {
       return globalQuestion;
     }
 
-    // 4. All auto questions done, no manual question open → null
     return null;
-  }, [allQuestions, globalQuestion, isVotedByMe, roundId]);
+  }, [allQuestions, globalQuestion, isVotedByMe, roundId, isAutoRoundMode]);
 
   const questionId = effectiveQuestion?.id;
 
@@ -168,19 +159,20 @@ export default function VotePage() {
   if (session.status === "waiting") return <WaitingScreen message="Sự kiện chưa bắt đầu" sub="Vui lòng chờ admin bắt đầu phiên..." />;
   if (session.status === "ended") return <WaitingScreen message="Cảm ơn bạn đã tham gia! 🎉" />;
 
-  // No effective question: voter has voted all available auto questions
+  // No effective question: voter has voted all available questions in this round mode
   if (!effectiveQuestion) {
-    // Check if there are still pending (manual or future) questions in this round
-    const hasPendingQuestions = allQuestions.some((q) => q.status === "pending" || (q.status === "open" && !q.auto_next));
+    const hasPendingQuestions = isAutoRoundMode
+      ? allQuestions.some((q) => q.status === "open" && !isVotedByMe(q.id))
+      : allQuestions.some((q) => q.status === "pending" || q.status === "open");
     const message = hasPendingQuestions
       ? "Chờ câu hỏi tiếp theo..."
       : "Bạn đã hoàn thành tất cả câu hỏi! 🎉";
     const sub = hasPendingQuestions
-      ? "Admin sẽ mở câu tiếp theo, màn hình tự cập nhật"
+      ? (isAutoRoundMode ? "Đợi các câu còn lại hoặc kết thúc round..." : "Admin sẽ mở câu tiếp theo, màn hình tự cập nhật")
       : "Chờ vòng tiếp theo hoặc kết quả...";
     return (
       <WaitingScreen message={message} sub={sub}>
-        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
@@ -188,7 +180,7 @@ export default function VotePage() {
   if (effectiveQuestion.status === "pending") {
     return (
       <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật">
-        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
@@ -196,26 +188,26 @@ export default function VotePage() {
   if (effectiveQuestion.status === "closed") {
     return (
       <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật">
-        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
 
   // MANUAL mode: voter already voted on this manual question → show ResultsPreview, wait for admin
-  if (hasVoted && effectiveQuestion.status === "open" && !effectiveQuestion.auto_next) {
+  if (!isAutoRoundMode && hasVoted && effectiveQuestion.status === "open") {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/40">
         <ResultsPreview
           code={code}
           roundId={roundId}
           question={effectiveQuestion}
-          teams={session.teams}
+          teams={roundTeams}
           myChoices={myChoices}
           round={currentRound}
           roundDuration={roundDuration}
           questionDuration={questionDuration}
         />
-        <VoteHistory code={code} runVersion={runVersion} teams={session.teams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
       </div>
     );
   }
@@ -224,7 +216,7 @@ export default function VotePage() {
   return (
     <VoteCard
       question={effectiveQuestion}
-      teams={session.teams}
+      teams={roundTeams}
       showRoundLabel={showRoundLabel}
       roundName={currentRound?.name}
       roundEndsAt={currentRound?.ends_at}

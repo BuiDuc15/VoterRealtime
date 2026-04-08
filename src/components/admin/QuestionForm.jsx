@@ -18,19 +18,17 @@ export default function QuestionForm({ code, roundId, questions, editingQuestion
   const [description, setDescription] = useState("");
   const [voteMode, setVoteMode] = useState("single");
   const [durationText, setDurationText] = useState("");
-  const [autoNext, setAutoNext] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const canEdit = !editingQuestion || editingQuestion.status !== "open";
   const parsedDuration = useMemo(() => parseDuration(durationText), [durationText]);
 
   useEffect(() => {
-    if (!editingQuestion) { setText(""); setDescription(""); setVoteMode("single"); setDurationText(""); setAutoNext(false); return; }
+    if (!editingQuestion) { setText(""); setDescription(""); setVoteMode("single"); setDurationText(""); return; }
     setText(editingQuestion.text || "");
     setDescription(editingQuestion.description || "");
     setVoteMode(editingQuestion.vote_mode || "single");
     setDurationText(editingQuestion.duration ? String(editingQuestion.duration) : "");
-    setAutoNext(Boolean(editingQuestion.auto_next));
   }, [editingQuestion]);
 
   async function handleSubmit(event) {
@@ -40,12 +38,12 @@ export default function QuestionForm({ code, roundId, questions, editingQuestion
     try {
       if (editingQuestion?.id) {
         await updateDoc(doc(db, "sessions", code, "rounds", roundId, "questions", editingQuestion.id), {
-          text: text.trim(), description: description.trim() || null, vote_mode: voteMode, duration: parsedDuration, auto_next: autoNext,
+          text: text.trim(), description: description.trim() || null, vote_mode: voteMode, duration: parsedDuration,
         });
       } else {
         await addDoc(collection(db, "sessions", code, "rounds", roundId, "questions"), {
           text: text.trim(), description: description.trim() || null, order: questions.length, vote_mode: voteMode, status: "pending",
-          duration: parsedDuration, ends_at: null, auto_next: autoNext, show_realtime: false,
+          duration: parsedDuration, ends_at: null, auto_next: false, show_realtime: false,
           created_at: serverTimestamp(),
         });
       }
@@ -68,9 +66,8 @@ export default function QuestionForm({ code, roundId, questions, editingQuestion
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Timeout câu hỏi</p>
         <input value={durationText} onChange={(e) => setDurationText(e.target.value)} placeholder="Thời gian câu hỏi (giây, bỏ trống = dùng mặc định session hoặc không giới hạn)" className="h-10 w-full rounded-lg border px-3 text-sm" disabled={!canEdit || loading} />
       </div>
-      <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
-        <button type="button" onClick={() => setAutoNext(false)} className={`h-9 rounded-lg border px-2 text-xs font-semibold ${!autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Mode câu hỏi: Manual (admin chuyển)</button>
-        <button type="button" onClick={() => setAutoNext(true)} className={`h-9 rounded-lg border px-2 text-xs font-semibold ${autoNext ? "bg-gray-900 text-white" : ""}`} disabled={!canEdit}>Mode câu hỏi: Auto (theo timeout câu)</button>
+      <div className="rounded-lg border bg-slate-50 p-3 text-xs text-slate-500">
+        Câu hỏi chỉ cấu hình nội dung, kiểu vote và timeout. Mode tự/manual chuyển câu được cấu hình tại round.
       </div>
       <div className="flex gap-2">
         <button type="submit" disabled={!canEdit || loading} className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:bg-gray-300">{loading ? "Đang lưu..." : editingQuestion ? "Cập nhật" : "Thêm câu"}</button>

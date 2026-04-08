@@ -2,7 +2,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
 import CountdownTimer from "../shared/CountdownTimer";
 import { useShardedVoteCounts } from "../../hooks/useShardedVoteCounts";
-import { nextQuestion as goNextQuestion, nextRound as goNextRound } from "../../utils/sessionFlow";
+import { endCurrentRound, nextQuestion as goNextQuestion, nextRound as goNextRound } from "../../utils/sessionFlow";
 import { makeEndsAt } from "../../utils/timerHelpers";
 
 export default function LiveControls({ code, session, currentRound, currentQuestion, questions, canControl, onlineCount = 0 }) {
@@ -16,7 +16,8 @@ export default function LiveControls({ code, session, currentRound, currentQuest
     ? questions.find((q) => q.status === "pending" && (q.order ?? 0) > currentOrder)
     : questions.find((q) => q.status === "pending");
 
-  const teams = session?.teams || [];
+  const teams = currentRound?.teams || session?.teams || [];
+  const isAutoRoundMode = (currentRound?.question_flow_mode || "manual") === "auto";
 
   async function openQuestion(question) {
     if (!question || !currentRound?.id) return;
@@ -47,18 +48,22 @@ export default function LiveControls({ code, session, currentRound, currentQuest
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-xs uppercase tracking-wider text-white/40">{currentRound?.name || "Chưa có round"}</p>
-          <h2 className="mt-1 text-xl font-bold truncate">{currentQuestion?.text || "Chưa mở câu hỏi"}</h2>
-          {currentQuestion?.description ? <p className="mt-1 text-sm text-white/40 line-clamp-2">{currentQuestion.description}</p> : null}
-          {isOpen ? (
+          <h2 className="mt-1 text-xl font-bold truncate">
+            {isAutoRoundMode ? "Mode auto theo round" : (currentQuestion?.text || "Chưa mở câu hỏi")}
+          </h2>
+          {!isAutoRoundMode && currentQuestion?.description ? <p className="mt-1 text-sm text-white/40 line-clamp-2">{currentQuestion.description}</p> : null}
+          {!isAutoRoundMode && isOpen ? (
             <div className="mt-1.5 flex items-center gap-2">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-              <span className="text-xs text-emerald-400 font-medium">Đang mở · {currentQuestion.auto_next ? "Auto" : "Manual"}</span>
+              <span className="text-xs text-emerald-400 font-medium">Đang mở · {isAutoRoundMode ? "Auto theo round" : "Manual"}</span>
             </div>
-          ) : currentQuestion?.status === "closed" ? (
+          ) : !isAutoRoundMode && currentQuestion?.status === "closed" ? (
             <span className="mt-1 inline-block text-xs text-red-400">Đã đóng</span>
+          ) : isAutoRoundMode ? (
+            <span className="mt-1 inline-block text-xs text-cyan-300">Voter vote xong sẽ tự sang câu kế tiếp</span>
           ) : null}
         </div>
-        {currentQuestion?.ends_at && isOpen ? (
+        {!isAutoRoundMode && currentQuestion?.ends_at && isOpen ? (
           <CountdownTimer endsAt={currentQuestion.ends_at} duration={currentQuestion.duration} size="normal" />
         ) : null}
       </div>
@@ -111,30 +116,43 @@ export default function LiveControls({ code, session, currentRound, currentQuest
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
+        {!isAutoRoundMode ? (
+          <>
+            <button
+              onClick={() => openQuestion(pendingQuestion)}
+              disabled={!canControl || !pendingQuestion || isOpen}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-40"
+            >
+              {isOpen ? "Câu đang mở" : "Mở câu"}
+            </button>
+            <button
+              onClick={closeCurrentQuestion}
+              disabled={!canControl || !isOpen}
+              className="rounded-lg bg-red-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-40"
+            >
+              Đóng câu
+            </button>
+          </>
+        ) : null}
         <button
-          onClick={() => openQuestion(pendingQuestion)}
-          disabled={!canControl || !pendingQuestion || isOpen}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-40"
+          onClick={() => endCurrentRound(code)}
+          disabled={!canControl || !currentRound?.id || currentRound?.status === "ended"}
+          className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600 disabled:opacity-40"
         >
-          {isOpen ? "Câu đang mở" : "Mở câu tiếp"}
+          Kết thúc round
         </button>
-        <button
-          onClick={closeCurrentQuestion}
-          disabled={!canControl || !isOpen}
-          className="rounded-lg bg-red-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-40"
-        >
-          Đóng câu
-        </button>
-        <button
-          onClick={() => goNextQuestion(code, currentRound?.id, currentQuestion?.id)}
-          disabled={!canControl || !currentQuestion?.id || !isOpen}
-          className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/15 disabled:opacity-40"
-        >
-          Câu tiếp →
-        </button>
+        {!isAutoRoundMode ? (
+          <button
+            onClick={() => goNextQuestion(code, currentRound?.id, currentQuestion?.id)}
+            disabled={!canControl || !currentQuestion?.id || !isOpen}
+            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/15 disabled:opacity-40"
+          >
+            Câu tiếp →
+          </button>
+        ) : null}
         <button
           onClick={() => goNextRound(code)}
-          disabled={!canControl || !currentRound?.id}
+          disabled={!canControl || !currentRound?.id || currentRound?.status !== "ended"}
           className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/50 transition hover:bg-white/10 disabled:opacity-40"
         >
           Round tiếp ⏭
