@@ -28,6 +28,7 @@ const PRESETS = [
 ];
 
 export default function SessionTimeoutSettings({ code, session }) {
+  const [sessionDuration, setSessionDuration] = useState("");
   const [questionTimeout, setQuestionTimeout] = useState("");
   const [roundTimeout, setRoundTimeout] = useState("");
   const [roundTransitionMode, setRoundTransitionMode] = useState("manual");
@@ -35,21 +36,24 @@ export default function SessionTimeoutSettings({ code, session }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const parsedSessionDuration = useMemo(() => parseDuration(sessionDuration), [sessionDuration]);
   const parsedQuestionTimeout = useMemo(() => parseDuration(questionTimeout), [questionTimeout]);
   const parsedRoundTimeout = useMemo(() => parseDuration(roundTimeout), [roundTimeout]);
 
   useEffect(() => {
+    setSessionDuration(session?.session_duration ? String(session.session_duration) : "");
     setQuestionTimeout(session?.default_question_duration ? String(session.default_question_duration) : "");
     setRoundTimeout(session?.default_round_duration ? String(session.default_round_duration) : "");
     setRoundTransitionMode(session?.round_transition_mode || "manual");
     setDisplayReportMode(session?.display_report_mode || "current_round");
-  }, [session?.default_question_duration, session?.default_round_duration, session?.round_transition_mode, session?.display_report_mode]);
+  }, [session?.session_duration, session?.default_question_duration, session?.default_round_duration, session?.round_transition_mode, session?.display_report_mode]);
 
   async function handleSave() {
     setSaving(true);
     setSaved(false);
     try {
       await updateDoc(doc(db, "sessions", code), {
+        session_duration: parsedSessionDuration,
         default_question_duration: parsedQuestionTimeout,
         default_round_duration: parsedRoundTimeout,
         round_transition_mode: roundTransitionMode,
@@ -63,6 +67,7 @@ export default function SessionTimeoutSettings({ code, session }) {
   }
 
   const hasChanges =
+    parsedSessionDuration !== (session?.session_duration || null) ||
     parsedQuestionTimeout !== (session?.default_question_duration || null) ||
     parsedRoundTimeout !== (session?.default_round_duration || null) ||
     roundTransitionMode !== (session?.round_transition_mode || "manual") ||
@@ -73,6 +78,37 @@ export default function SessionTimeoutSettings({ code, session }) {
       <div>
         <h3 className="text-sm font-semibold text-gray-700">⏱ Timeout mặc định cho phiên</h3>
         <p className="mt-0.5 text-xs text-gray-400">Áp dụng cho câu hỏi / round chưa thiết lập riêng</p>
+      </div>
+
+      {/* Session-wide duration */}
+      <div className="space-y-2 rounded-lg border-2 border-indigo-200 bg-indigo-50 p-3">
+        <label className="text-sm font-bold text-indigo-700">⏳ Tổng thời gian session (đếm ngược chung)</label>
+        <p className="text-xs text-indigo-500">Khi hết giờ, session tự kết thúc và hiển thị kết quả tất cả rounds. Để trống nếu không cần timer chung.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => setSessionDuration(p.value != null ? String(p.value) : "")}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                parsedSessionDuration === p.value
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <input
+          value={sessionDuration}
+          onChange={(e) => setSessionDuration(e.target.value)}
+          placeholder="VD: 180 hoặc 3:00 cho 3 phút"
+          className="h-10 w-full rounded-lg border px-3 text-sm"
+        />
+        {parsedSessionDuration ? (
+          <p className="text-xs text-indigo-600 font-semibold">= {parsedSessionDuration}s ({formatDuration(parsedSessionDuration)}) — Timer hiển thị to trên màn display</p>
+        ) : null}
       </div>
 
       {/* Default question timeout */}

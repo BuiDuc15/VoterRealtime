@@ -76,6 +76,9 @@ export async function startSessionRun(code) {
       status: "active",
       current_round_id: firstRound ? firstRound.id : null,
       current_question_id: firstRoundIsAuto ? null : (firstQuestionDoc ? firstQuestionDoc.id : null),
+      session_ends_at: sessionData.session_duration
+        ? makeEndsAt(Number(sessionData.session_duration))
+        : null,
     });
 
     if (firstRound) {
@@ -358,6 +361,7 @@ export async function resetSessionRun(code) {
     current_round_id: null,
     current_question_id: null,
     session_version: (session.session_version || 1) + 1,
+    session_ends_at: null,
   });
 
   for (const roundDoc of orderedRounds) {
@@ -380,3 +384,63 @@ export async function resetSessionRun(code) {
   await batch.commit();
   return true;
 }
+
+/* ── endSession ──────────────────────────────────────── */
+
+/**
+ * Ends the whole session immediately:
+ * - closes all open questions in current round
+ * - marks current round as ended
+ * - sets session status = "ended"
+ */
+export async function endSession(code) {
+  const sessionRef = doc(db, "sessions", code);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return false;
+
+  const session = sessionSnap.data();
+  if (session.status !== "active") return false;
+
+  const currentRoundId = session.current_round_id;
+  const roundRef = currentRoundId ? doc(db, "sessions", code, "rounds", currentRoundId) : null;
+
+  const currentRoundQuestions = currentRoundId
+    ? await loadOrderedQuestions(code, currentRoundId)
+    : [];
+  const openCurrentQs = currentRoundQuestions.filter((d) => d.data().status === "open");
+
+  return runTransaction(db, async (tx) => {
+    // ALL reads first
+    const liveSession = await tx.get(sessionRef);
+    const liveRound = roundRef ? await tx.get(roundRef) : null;
+
+    const liveOpenQs = [];
+    for (const qDoc of openCurrentQs) {
+      liveOpenQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+    }
+
+    if (!liveSession.exists()) return false;
+    const s = liveSession.data();
+    if (s.status !== "active") return false;
+
+    // ALL writes after
+    for (const { ref, live } of liveOpenQs) {
+      if (live.exists() && live.data().status === "open") {
+        tx.update(ref, { status: "closed", ends_at: null });
+      }
+    }
+
+    if (roundRef && liveRound?.exists() && liveRound.data().status !== "ended") {
+      tx.update(roundRef, { status: "ended", ends_at: null });
+    }
+
+    tx.update(sessionRef, {
+      status: "ended",
+      current_question_id: null,
+      session_ends_at: null,
+    });
+
+    return true;
+  });
+}
+
