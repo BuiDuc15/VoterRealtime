@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import CountdownBar from "../shared/CountdownBar";
 
 export default function VoteCard({
   question,
   teams,
+  questionScopeKey,
   showRoundLabel,
   roundName,
   roundEndsAt,
@@ -15,6 +16,10 @@ export default function VoteCard({
   submitError = null,
 }) {
   const [selected, setSelected] = useState([]);
+
+  useEffect(() => {
+    setSelected([]);
+  }, [question?.id, questionScopeKey]);
 
   function toggle(teamId) {
     if (submitting) return;

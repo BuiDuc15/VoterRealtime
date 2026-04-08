@@ -299,8 +299,10 @@ export default function VotePage() {
   // Show voting card for the effective question
   return (
     <VoteCard
+      key={`${effectiveRoundId || "no_round"}_${questionId || "no_question"}`}
       question={effectiveQuestion}
       teams={roundTeams}
+      questionScopeKey={`${effectiveRoundId || "no_round"}_${questionId || "no_question"}`}
       showRoundLabel={showRoundLabel}
       roundName={effectiveRound?.name}
       roundEndsAt={effectiveRound?.ends_at}
