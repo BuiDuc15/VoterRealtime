@@ -68,6 +68,10 @@ export default function VotePage() {
     () => [...rounds].sort((a, b) => (a.order || 0) - (b.order || 0)),
     [rounds]
   );
+  const teamsByRound = useMemo(
+    () => Object.fromEntries(orderedRounds.map((r) => [r.id, r.teams || session?.teams || []])),
+    [orderedRounds, session?.teams]
+  );
 
   const allContinuousQuestions = useMemo(
     () => orderedRounds.flatMap((round) =>
@@ -252,7 +256,7 @@ export default function VotePage() {
       : (isContinuousVoterMode ? "Chờ kết quả tổng hợp toàn bộ round..." : "Chờ vòng tiếp theo hoặc kết quả...");
     return (
       <WaitingScreen message={message} sub={sub}>
-        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} teamsByRound={teamsByRound} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
@@ -260,7 +264,7 @@ export default function VotePage() {
   if (effectiveQuestion.status === "pending") {
     return (
       <WaitingScreen message="Chờ câu hỏi tiếp theo..." sub="Màn hình sẽ tự cập nhật">
-        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} teamsByRound={teamsByRound} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
@@ -268,7 +272,7 @@ export default function VotePage() {
   if (effectiveQuestion.status === "closed") {
     return (
       <WaitingScreen message="Câu này đã đóng. Chờ tiếp..." sub="Màn hình sẽ tự cập nhật">
-        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} teamsByRound={teamsByRound} allQuestions={allQuestions} />
       </WaitingScreen>
     );
   }
@@ -287,7 +291,7 @@ export default function VotePage() {
           roundDuration={roundDuration}
           questionDuration={questionDuration}
         />
-        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
+        <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} teamsByRound={teamsByRound} allQuestions={allQuestions} />
       </div>
     );
   }

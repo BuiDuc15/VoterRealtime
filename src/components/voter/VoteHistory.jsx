@@ -1,4 +1,4 @@
-export default function VoteHistory({ code, runVersion = 1, teams, allQuestions = [] }) {
+export default function VoteHistory({ code, runVersion = 1, teams, teamsByRound = {}, allQuestions = [] }) {
   if (!allQuestions.length) return null;
 
   const voteKeyPrefix = `${code}_v${runVersion}`;
@@ -16,10 +16,11 @@ export default function VoteHistory({ code, runVersion = 1, teams, allQuestions 
             || localStorage.getItem(`choice_${code}_${q.roundId}_${q.id}`)
             || "[]"
           );
-          const chosenTeams = teams.filter((t) => choices.includes(t.id));
+          const questionTeams = teamsByRound[q.roundId] || teams || [];
+          const chosenTeams = questionTeams.filter((t) => choices.includes(t.id));
 
           return (
-            <div key={q.id} className={`flex items-center justify-between py-2 ${!voted ? "opacity-40" : ""}`}>
+            <div key={`${q.roundId || "no_round"}_${q.id}`} className={`flex items-center justify-between py-2 ${!voted ? "opacity-40" : ""}`}>
               <span className="truncate text-sm text-gray-700 pr-2">{q.text}</span>
               {voted && chosenTeams.length > 0 ? (
                 <div className="flex shrink-0 items-center gap-1.5">

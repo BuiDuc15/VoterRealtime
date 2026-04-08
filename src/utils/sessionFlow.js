@@ -100,7 +100,7 @@ export async function startSessionRun(code) {
     // Writes
     tx.update(sessionRef, {
       status: "active",
-      current_round_id: firstRound ? firstRound.id : null,
+      current_round_id: startInContinuousMode ? null : (firstRound ? firstRound.id : null),
       current_question_id: startInContinuousMode
         ? null
         : (firstRoundIsAuto ? null : (firstQuestionDoc ? firstQuestionDoc.id : null)),

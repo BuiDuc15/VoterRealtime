@@ -113,8 +113,8 @@ export default function DisplayPage() {
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
   const voteUrl = `${window.location.origin}/vote/${code}`;
 
-  // Background music: play when voting is active
-  const isVoting = session?.status === "active" && !!currentRound && currentRound.status === "active";
+  // Background music: play when session is active
+  const isVoting = session?.status === "active";
   const shouldPlayMusic = isVoting && musicEnabled;
   const { audioUnlocked, unlockAudio } = useBackgroundMusic(shouldPlayMusic);
 
@@ -331,21 +331,21 @@ export default function DisplayPage() {
             currentQuestion={currentQuestion}
             enableRoundCheer={enableRoundCheer}
           />
-        ) : (
+        ) : !isContinuousVoterMode ? (
           <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="text-lg font-semibold text-slate-700">Đang chờ admin mở round...</p>
             <p className="mt-2 text-sm text-slate-400">Màn hình sẽ tự động cập nhật khi round được bắt đầu</p>
           </div>
-        )}
+        ) : null}
 
         {/* Cumulative reports */}
         {(effectiveReportMode === "cumulative" || isContinuousVoterMode) && reportRounds.length > 0 ? (
           <div className="mx-auto mt-5 w-full max-w-5xl space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                {isContinuousVoterMode ? "Mode liên tục: hiển thị kết quả tất cả round" : "Báo cáo tổng hợp theo round"}
-              </p>
-            </div>
+            {isContinuousVoterMode ? null : (
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Báo cáo tổng hợp theo round</p>
+              </div>
+            )}
             <div className="space-y-3">
               {reportRounds.map((round) => (
                 <RoundSummaryCard
