@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
 import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
@@ -12,6 +13,7 @@ import VoteCard from "../components/voter/VoteCard";
 import ResultsPreview from "../components/voter/ResultsPreview";
 import VoteHistory from "../components/voter/VoteHistory";
 import { submitVoteWithRetry } from "../utils/sharding";
+import { db } from "../firebase";
 
 const VOTE_ERROR_MESSAGES = {
   already_voted: "Bạn đã vote câu này rồi.",
@@ -32,16 +34,61 @@ export default function VotePage() {
 
   useVoterPresence(code, voterToken);
 
+  const isContinuousVoterMode = (session?.voter_progress_mode || "round_gated") === "continuous";
   const currentRound = useMemo(() => rounds.find((r) => r.id === session?.current_round_id), [rounds, session?.current_round_id]);
   const isAutoRoundMode = (currentRound?.question_flow_mode || "manual") === "auto";
-  const roundTeams = useMemo(() => currentRound?.teams || session?.teams || [], [currentRound, session?.teams]);
   const totalRounds = rounds.length;
   const showRoundLabel = totalRounds >= 2 || session?.show_round_label;
-  const roundId = currentRound?.id;
+
+  const [continuousQuestionsByRound, setContinuousQuestionsByRound] = useState({});
+
+  useEffect(() => {
+    if (!code || !isContinuousVoterMode || !rounds.length) {
+      setContinuousQuestionsByRound({});
+      return undefined;
+    }
+
+    const unsubs = rounds.map((round) => {
+      const qRef = query(
+        collection(db, "sessions", code, "rounds", round.id, "questions"),
+        orderBy("order", "asc")
+      );
+      return onSnapshot(qRef, (snap) => {
+        setContinuousQuestionsByRound((prev) => ({
+          ...prev,
+          [round.id]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        }));
+      });
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [code, isContinuousVoterMode, rounds]);
+
+  const orderedRounds = useMemo(
+    () => [...rounds].sort((a, b) => (a.order || 0) - (b.order || 0)),
+    [rounds]
+  );
+
+  const allContinuousQuestions = useMemo(
+    () => orderedRounds.flatMap((round) =>
+      (continuousQuestionsByRound[round.id] || []).map((q) => ({
+        ...q,
+        roundId: round.id,
+        roundName: round.name,
+        roundOrder: round.order || 0,
+      }))
+    ),
+    [orderedRounds, continuousQuestionsByRound]
+  );
+
+  const roundId = isContinuousVoterMode ? null : currentRound?.id;
 
   // Load ALL questions for the current round (realtime)
   const { questions: allQuestionsRaw } = useQuestions(code, roundId);
-  const allQuestions = useMemo(() => allQuestionsRaw.map((q) => ({ ...q, roundId })), [allQuestionsRaw, roundId]);
+  const allQuestions = useMemo(() => {
+    if (isContinuousVoterMode) return allContinuousQuestions;
+    return allQuestionsRaw.map((q) => ({ ...q, roundId }));
+  }, [isContinuousVoterMode, allContinuousQuestions, allQuestionsRaw, roundId]);
 
   const runVersion = session?.session_version ?? 1;
   const voteKeyPrefix = `${code}_v${runVersion}`;
@@ -51,11 +98,12 @@ export default function VotePage() {
   }, [voteKeyPrefix]);
 
   // Helper: check if this voter already voted on a specific question
-  const isVotedByMe = useCallback((qId) => {
-    if (!qId || !roundId) return false;
-    if (votedMap[qId]) return true;
-    return localStorage.getItem(`voted_${voteKeyPrefix}_${roundId}_${qId}`) === "true";
-  }, [votedMap, voteKeyPrefix, roundId]);
+  const isVotedByMe = useCallback((qId, qRoundId) => {
+    if (!qId || !qRoundId) return false;
+    const mapKey = `${qRoundId}_${qId}`;
+    if (votedMap[mapKey]) return true;
+    return localStorage.getItem(`voted_${voteKeyPrefix}_${qRoundId}_${qId}`) === "true";
+  }, [votedMap, voteKeyPrefix]);
 
   // ──────────────────────────────────────────────────────────
   // LOCAL PROGRESSION: determine the "effective question" for THIS voter
@@ -71,31 +119,49 @@ export default function VotePage() {
   //   Vote xong câu manual → hiện ResultsPreview → chờ admin chuyển.
   // ──────────────────────────────────────────────────────────
   const effectiveQuestion = useMemo(() => {
-    if (!roundId || !allQuestions.length) return globalQuestion;
+    if (!allQuestions.length) return isContinuousVoterMode ? null : globalQuestion;
+
+    if (isContinuousVoterMode) {
+      const nextContinuousQuestion = allQuestions.find(
+        (q) => q.status === "open" && !isVotedByMe(q.id, q.roundId)
+      );
+      return nextContinuousQuestion || null;
+    }
+
+    if (!roundId) return globalQuestion;
 
     if (isAutoRoundMode) {
       // Auto mode: first open question not yet voted by this voter
-      const nextAutoQ = allQuestions.find((q) => q.status === "open" && !isVotedByMe(q.id));
+      const nextAutoQ = allQuestions.find((q) => q.status === "open" && !isVotedByMe(q.id, roundId));
       return nextAutoQ || null;
     }
 
     // Manual mode: follow global current_question_id
-    if (globalQuestion && globalQuestion.status === "open" && !isVotedByMe(globalQuestion.id)) {
+    if (globalQuestion && globalQuestion.status === "open" && !isVotedByMe(globalQuestion.id, roundId)) {
       return globalQuestion;
     }
 
     // If already voted current manual question, keep showing it for preview
-    if (globalQuestion && globalQuestion.status === "open" && isVotedByMe(globalQuestion.id)) {
+    if (globalQuestion && globalQuestion.status === "open" && isVotedByMe(globalQuestion.id, roundId)) {
       return globalQuestion;
     }
 
     return null;
-  }, [allQuestions, globalQuestion, isVotedByMe, roundId, isAutoRoundMode]);
+  }, [allQuestions, globalQuestion, isVotedByMe, roundId, isAutoRoundMode, isContinuousVoterMode]);
 
   const questionId = effectiveQuestion?.id;
+  const effectiveRoundId = effectiveQuestion?.roundId || roundId;
+  const effectiveRound = useMemo(
+    () => rounds.find((r) => r.id === effectiveRoundId) || null,
+    [rounds, effectiveRoundId]
+  );
+  const roundTeams = useMemo(
+    () => effectiveRound?.teams || session?.teams || [],
+    [effectiveRound, session?.teams]
+  );
 
-  const roundDuration = Number(currentRound?.duration) > 0
-    ? Number(currentRound.duration)
+  const roundDuration = Number(effectiveRound?.duration) > 0
+    ? Number(effectiveRound.duration)
     : Number(session?.default_round_duration) > 0
     ? Number(session.default_round_duration)
     : null;
@@ -106,10 +172,15 @@ export default function VotePage() {
     : null;
 
   // Vote status for effective question
-  const voteKey = roundId && questionId ? `voted_${voteKeyPrefix}_${roundId}_${questionId}` : null;
-  const hasVoted = Boolean(questionId && voteKey && (votedMap[questionId] || localStorage.getItem(voteKey) === "true"));
-  const myChoices = questionId && roundId
-    ? JSON.parse(localStorage.getItem(`choice_${voteKeyPrefix}_${roundId}_${questionId}`) || "[]")
+  const voteKey = effectiveRoundId && questionId ? `voted_${voteKeyPrefix}_${effectiveRoundId}_${questionId}` : null;
+  const voteMapKey = effectiveRoundId && questionId ? `${effectiveRoundId}_${questionId}` : null;
+  const hasVoted = Boolean(
+    questionId
+    && voteKey
+    && ((voteMapKey ? votedMap[voteMapKey] : false) || localStorage.getItem(voteKey) === "true")
+  );
+  const myChoices = questionId && effectiveRoundId
+    ? JSON.parse(localStorage.getItem(`choice_${voteKeyPrefix}_${effectiveRoundId}_${questionId}`) || "[]")
     : [];
 
   // Block back after voting
@@ -126,17 +197,22 @@ export default function VotePage() {
     setSubmitting(true);
     setSubmitError(null);
 
-    if (localStorage.getItem(`voted_${voteKeyPrefix}_${roundId}_${questionId}`)) {
+    if (!effectiveRoundId || !questionId) {
       setSubmitting(false);
       return;
     }
 
-    const result = await submitVoteWithRetry(code, roundId, questionId, voterToken, choices, runVersion);
+    if (localStorage.getItem(`voted_${voteKeyPrefix}_${effectiveRoundId}_${questionId}`)) {
+      setSubmitting(false);
+      return;
+    }
+
+    const result = await submitVoteWithRetry(code, effectiveRoundId, questionId, voterToken, choices, runVersion);
 
     if (result.success) {
-      localStorage.setItem(`voted_${voteKeyPrefix}_${roundId}_${questionId}`, "true");
-      localStorage.setItem(`choice_${voteKeyPrefix}_${roundId}_${questionId}`, JSON.stringify(choices));
-      setVotedMap((prev) => ({ ...prev, [questionId]: true }));
+      localStorage.setItem(`voted_${voteKeyPrefix}_${effectiveRoundId}_${questionId}`, "true");
+      localStorage.setItem(`choice_${voteKeyPrefix}_${effectiveRoundId}_${questionId}`, JSON.stringify(choices));
+      setVotedMap((prev) => ({ ...prev, [`${effectiveRoundId}_${questionId}`]: true }));
 
       // NOTE: Không gọi nextQuestion() ở voter!
       // Ở mode auto, tất cả câu hỏi auto đã được mở sẵn khi round bắt đầu.
@@ -161,15 +237,19 @@ export default function VotePage() {
 
   // No effective question: voter has voted all available questions in this round mode
   if (!effectiveQuestion) {
-    const hasPendingQuestions = isAutoRoundMode
-      ? allQuestions.some((q) => q.status === "open" && !isVotedByMe(q.id))
+    const hasPendingQuestions = isContinuousVoterMode
+      ? allQuestions.some((q) => q.status === "open" && !isVotedByMe(q.id, q.roundId))
+      : isAutoRoundMode
+      ? allQuestions.some((q) => q.status === "open" && !isVotedByMe(q.id, roundId))
       : allQuestions.some((q) => q.status === "pending" || q.status === "open");
     const message = hasPendingQuestions
       ? "Chờ câu hỏi tiếp theo..."
       : "Bạn đã hoàn thành tất cả câu hỏi! 🎉";
     const sub = hasPendingQuestions
-      ? (isAutoRoundMode ? "Đợi các câu còn lại hoặc kết thúc round..." : "Admin sẽ mở câu tiếp theo, màn hình tự cập nhật")
-      : "Chờ vòng tiếp theo hoặc kết quả...";
+      ? (isContinuousVoterMode
+        ? "Mode liên tục: hệ thống tự chuyển sang câu/round kế tiếp cho từng voter"
+        : (isAutoRoundMode ? "Đợi các câu còn lại hoặc kết thúc round..." : "Admin sẽ mở câu tiếp theo, màn hình tự cập nhật"))
+      : (isContinuousVoterMode ? "Chờ kết quả tổng hợp toàn bộ round..." : "Chờ vòng tiếp theo hoặc kết quả...");
     return (
       <WaitingScreen message={message} sub={sub}>
         <VoteHistory code={code} runVersion={runVersion} teams={roundTeams} allQuestions={allQuestions} />
@@ -199,11 +279,11 @@ export default function VotePage() {
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/40">
         <ResultsPreview
           code={code}
-          roundId={roundId}
+          roundId={effectiveRoundId}
           question={effectiveQuestion}
           teams={roundTeams}
           myChoices={myChoices}
-          round={currentRound}
+          round={effectiveRound}
           roundDuration={roundDuration}
           questionDuration={questionDuration}
         />
@@ -218,8 +298,8 @@ export default function VotePage() {
       question={effectiveQuestion}
       teams={roundTeams}
       showRoundLabel={showRoundLabel}
-      roundName={currentRound?.name}
-      roundEndsAt={currentRound?.ends_at}
+      roundName={effectiveRound?.name}
+      roundEndsAt={effectiveRound?.ends_at}
       roundDuration={roundDuration}
       questionDuration={questionDuration}
       onSubmit={handleSubmit}

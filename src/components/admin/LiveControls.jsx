@@ -18,6 +18,7 @@ export default function LiveControls({ code, session, currentRound, currentQuest
 
   const teams = currentRound?.teams || session?.teams || [];
   const isAutoRoundMode = (currentRound?.question_flow_mode || "manual") === "auto";
+  const isContinuousVoterMode = (session?.voter_progress_mode || "round_gated") === "continuous";
 
   async function openQuestion(question) {
     if (!question || !currentRound?.id) return;
@@ -61,6 +62,9 @@ export default function LiveControls({ code, session, currentRound, currentQuest
             <span className="mt-1 inline-block text-xs text-red-400">Đã đóng</span>
           ) : isAutoRoundMode ? (
             <span className="mt-1 inline-block text-xs text-cyan-300">Voter vote xong sẽ tự sang câu kế tiếp</span>
+          ) : null}
+          {isContinuousVoterMode ? (
+            <span className="mt-1 inline-block text-xs text-amber-300">Mode liên tục: voter tự đi hết tất cả round, không phụ thuộc chuyển round của admin</span>
           ) : null}
         </div>
         {!isAutoRoundMode && currentQuestion?.ends_at && isOpen ? (
@@ -136,7 +140,7 @@ export default function LiveControls({ code, session, currentRound, currentQuest
         ) : null}
         <button
           onClick={() => endCurrentRound(code)}
-          disabled={!canControl || !currentRound?.id || currentRound?.status === "ended"}
+          disabled={!canControl || !currentRound?.id || currentRound?.status === "ended" || isContinuousVoterMode}
           className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600 disabled:opacity-40"
         >
           Kết thúc round
@@ -152,7 +156,7 @@ export default function LiveControls({ code, session, currentRound, currentQuest
         ) : null}
         <button
           onClick={() => goNextRound(code)}
-          disabled={!canControl || !currentRound?.id || currentRound?.status !== "ended"}
+          disabled={!canControl || !currentRound?.id || currentRound?.status !== "ended" || isContinuousVoterMode}
           className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/50 transition hover:bg-white/10 disabled:opacity-40"
         >
           Round tiếp ⏭

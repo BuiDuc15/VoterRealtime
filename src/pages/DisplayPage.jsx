@@ -118,18 +118,20 @@ export default function DisplayPage() {
   const shouldPlayMusic = isVoting && musicEnabled;
   const { audioUnlocked, unlockAudio } = useBackgroundMusic(shouldPlayMusic);
 
+  const isContinuousVoterMode = (session?.voter_progress_mode || "round_gated") === "continuous";
   const isAutoRoundTransition = (session?.round_transition_mode || "manual") === "auto";
   const configuredReportMode = session?.display_report_mode || "current_round";
-  const effectiveReportMode = isAutoRoundTransition ? "cumulative" : configuredReportMode;
-  const enableRoundCheer = !isAutoRoundTransition && effectiveReportMode === "current_round";
+  const effectiveReportMode = (isAutoRoundTransition || isContinuousVoterMode) ? "cumulative" : configuredReportMode;
+  const enableRoundCheer = !isAutoRoundTransition && !isContinuousVoterMode && effectiveReportMode === "current_round";
 
   const reportRounds = useMemo(() => {
-    if (!currentRound) return [];
     const ordered = [...rounds].sort((a, b) => (a.order || 0) - (b.order || 0));
+    if (isContinuousVoterMode) return ordered;
+    if (!currentRound) return [];
     if (effectiveReportMode === "current_round") return [currentRound];
     const currentOrder = currentRound.order || 0;
     return ordered.filter((r) => (r.order || 0) <= currentOrder);
-  }, [rounds, currentRound, effectiveReportMode]);
+  }, [rounds, currentRound, effectiveReportMode, isContinuousVoterMode]);
 
   useAutoNextQuestion({
     currentQuestion,
@@ -321,7 +323,7 @@ export default function DisplayPage() {
 
       {/* Body — vote results (secondary) */}
       <div className="px-3 py-4 sm:px-5 sm:py-6">
-        {currentRound ? (
+        {!isContinuousVoterMode && currentRound ? (
           <ActiveRoundDisplay
             code={code}
             round={currentRound}
@@ -337,10 +339,12 @@ export default function DisplayPage() {
         )}
 
         {/* Cumulative reports */}
-        {effectiveReportMode === "cumulative" && reportRounds.length > 0 ? (
+        {(effectiveReportMode === "cumulative" || isContinuousVoterMode) && reportRounds.length > 0 ? (
           <div className="mx-auto mt-5 w-full max-w-5xl space-y-3">
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Báo cáo tổng hợp theo round</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                {isContinuousVoterMode ? "Mode liên tục: hiển thị kết quả tất cả round" : "Báo cáo tổng hợp theo round"}
+              </p>
             </div>
             <div className="space-y-3">
               {reportRounds.map((round) => (
@@ -349,7 +353,7 @@ export default function DisplayPage() {
                   code={code}
                   round={round}
                   teams={round.teams || session.teams || []}
-                  isCurrentRound={round.id === currentRound?.id}
+                  isCurrentRound={!isContinuousVoterMode && round.id === currentRound?.id}
                   showRoundName={true}
                 />
               ))}

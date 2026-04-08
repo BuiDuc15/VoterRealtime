@@ -43,6 +43,7 @@ export default function CreateSessionForm() {
         name: name.trim(),
         admin_password: btoa(password),
         status: "waiting",
+        voter_progress_mode: "round_gated",
         round_transition_mode: "manual",
         display_report_mode: "current_round",
         teams,

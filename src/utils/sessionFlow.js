@@ -43,9 +43,22 @@ export async function startSessionRun(code) {
   const [sessionSnap, orderedRounds] = await Promise.all([getDoc(sessionRef), loadOrderedRounds(code)]);
   if (!sessionSnap.exists()) return false;
 
+  const startInContinuousMode = (sessionSnap.data()?.voter_progress_mode || "round_gated") === "continuous";
+
+  // Continuous mode pre-loads all questions of all rounds
+  const allRoundQuestions = new Map();
+  if (startInContinuousMode) {
+    await Promise.all(
+      orderedRounds.map(async (roundDoc) => {
+        const questions = await loadOrderedQuestions(code, roundDoc.id);
+        allRoundQuestions.set(roundDoc.id, questions);
+      })
+    );
+  }
+
   const firstRound = orderedRounds.find((d) => d.data().status === "pending");
   let firstRoundQuestions = [];
-  if (firstRound) {
+  if (firstRound && !startInContinuousMode) {
     firstRoundQuestions = await loadOrderedQuestions(code, firstRound.id);
   }
   const firstRoundIsAuto = firstRound?.data()?.question_flow_mode === "auto";
@@ -63,6 +76,19 @@ export async function startSessionRun(code) {
     const liveFirstRound = firstRound ? await tx.get(firstRound.ref) : null;
     const liveFirstQuestion = firstQuestionDoc ? await tx.get(firstQuestionDoc.ref) : null;
 
+    const liveAllRounds = [];
+    const liveAllQuestions = [];
+    if (startInContinuousMode) {
+      for (const roundDoc of orderedRounds) {
+        const liveRound = await tx.get(roundDoc.ref);
+        liveAllRounds.push({ ref: roundDoc.ref, live: liveRound });
+        const questions = allRoundQuestions.get(roundDoc.id) || [];
+        for (const qDoc of questions) {
+          liveAllQuestions.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+        }
+      }
+    }
+
     // Read all auto-open questions (auto mode)
     const liveAutoQs = [];
     for (const qDoc of autoOpenQDocs) {
@@ -75,11 +101,28 @@ export async function startSessionRun(code) {
     tx.update(sessionRef, {
       status: "active",
       current_round_id: firstRound ? firstRound.id : null,
-      current_question_id: firstRoundIsAuto ? null : (firstQuestionDoc ? firstQuestionDoc.id : null),
+      current_question_id: startInContinuousMode
+        ? null
+        : (firstRoundIsAuto ? null : (firstQuestionDoc ? firstQuestionDoc.id : null)),
       session_ends_at: sessionData.session_duration
         ? makeEndsAt(Number(sessionData.session_duration))
         : null,
     });
+
+    if (startInContinuousMode) {
+      // In continuous mode, all rounds/questions are voter-available immediately.
+      for (const { ref, live } of liveAllRounds) {
+        if (live.exists()) {
+          tx.update(ref, { status: "active", ends_at: null });
+        }
+      }
+      for (const { ref, live } of liveAllQuestions) {
+        if (live.exists()) {
+          tx.update(ref, { status: "open", ends_at: null });
+        }
+      }
+      return;
+    }
 
     if (firstRound) {
       tx.update(firstRound.ref, {

@@ -31,6 +31,7 @@ export default function SessionTimeoutSettings({ code, session }) {
   const [sessionDuration, setSessionDuration] = useState("");
   const [questionTimeout, setQuestionTimeout] = useState("");
   const [roundTimeout, setRoundTimeout] = useState("");
+  const [voterProgressMode, setVoterProgressMode] = useState("round_gated");
   const [roundTransitionMode, setRoundTransitionMode] = useState("manual");
   const [displayReportMode, setDisplayReportMode] = useState("current_round");
   const [saving, setSaving] = useState(false);
@@ -44,9 +45,10 @@ export default function SessionTimeoutSettings({ code, session }) {
     setSessionDuration(session?.session_duration ? String(session.session_duration) : "");
     setQuestionTimeout(session?.default_question_duration ? String(session.default_question_duration) : "");
     setRoundTimeout(session?.default_round_duration ? String(session.default_round_duration) : "");
+    setVoterProgressMode(session?.voter_progress_mode || "round_gated");
     setRoundTransitionMode(session?.round_transition_mode || "manual");
     setDisplayReportMode(session?.display_report_mode || "current_round");
-  }, [session?.session_duration, session?.default_question_duration, session?.default_round_duration, session?.round_transition_mode, session?.display_report_mode]);
+  }, [session?.session_duration, session?.default_question_duration, session?.default_round_duration, session?.voter_progress_mode, session?.round_transition_mode, session?.display_report_mode]);
 
   async function handleSave() {
     setSaving(true);
@@ -56,6 +58,7 @@ export default function SessionTimeoutSettings({ code, session }) {
         session_duration: parsedSessionDuration,
         default_question_duration: parsedQuestionTimeout,
         default_round_duration: parsedRoundTimeout,
+        voter_progress_mode: voterProgressMode,
         round_transition_mode: roundTransitionMode,
         display_report_mode: displayReportMode,
       });
@@ -70,6 +73,7 @@ export default function SessionTimeoutSettings({ code, session }) {
     parsedSessionDuration !== (session?.session_duration || null) ||
     parsedQuestionTimeout !== (session?.default_question_duration || null) ||
     parsedRoundTimeout !== (session?.default_round_duration || null) ||
+    voterProgressMode !== (session?.voter_progress_mode || "round_gated") ||
     roundTransitionMode !== (session?.round_transition_mode || "manual") ||
     displayReportMode !== (session?.display_report_mode || "current_round");
 
@@ -78,6 +82,33 @@ export default function SessionTimeoutSettings({ code, session }) {
       <div>
         <h3 className="text-sm font-semibold text-gray-700">⏱ Timeout mặc định cho phiên</h3>
         <p className="mt-0.5 text-xs text-gray-400">Áp dụng cho câu hỏi / round chưa thiết lập riêng</p>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="text-sm font-medium text-gray-700">Luồng vote của voter</label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setVoterProgressMode("round_gated")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              voterProgressMode === "round_gated" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Theo round (mặc định)
+          </button>
+          <button
+            type="button"
+            onClick={() => setVoterProgressMode("continuous")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              voterProgressMode === "continuous" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Vote liên tục qua nhiều round
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          Mode liên tục: voter vote xong câu ở round này sẽ tự đi tiếp câu/round kế tiếp, không cần chờ admin kết thúc round.
+        </p>
       </div>
 
       {/* Session-wide duration */}
