@@ -30,6 +30,10 @@ function roundEndsAt(roundData, defaultDuration) {
   return Number.isFinite(fallback) && fallback > 0 ? makeEndsAt(fallback) : null;
 }
 
+function isRoundTransitionAuto(sessionData) {
+  return (sessionData?.round_transition_mode || "manual") === "auto";
+}
+
 /* ── startSessionRun ──────────────────────────────────── */
 
 export async function startSessionRun(code) {
@@ -170,7 +174,7 @@ export async function nextQuestion(code, currentRoundId, currentQuestionId) {
     // All done — end round
     tx.update(liveRound.ref, { status: "ended", ends_at: null });
     tx.update(sessionRef, { current_question_id: null });
-    return false;
+    return isRoundTransitionAuto(s);
   });
 
   if (shouldAdvanceRound) {
@@ -308,7 +312,7 @@ export async function endCurrentRound(code) {
   const currentRoundQuestions = await loadOrderedQuestions(code, currentRoundId);
   const openCurrentQs = currentRoundQuestions.filter((d) => d.data().status === "open");
 
-  return runTransaction(db, async (tx) => {
+  const shouldAdvanceRound = await runTransaction(db, async (tx) => {
     const liveSession = await tx.get(sessionRef);
     const liveRound = await tx.get(roundRef);
     if (!liveSession.exists() || !liveRound.exists()) return false;
@@ -316,17 +320,27 @@ export async function endCurrentRound(code) {
     const s = liveSession.data();
     if (s.status !== "active" || s.current_round_id !== currentRoundId) return false;
 
+    // Firestore requires all tx.get() calls to be completed before tx.update().
+    const liveOpenCurrentQs = [];
     for (const qDoc of openCurrentQs) {
-      const liveQ = await tx.get(qDoc.ref);
-      if (liveQ.exists() && liveQ.data().status === "open") {
-        tx.update(qDoc.ref, { status: "closed", ends_at: null });
+      liveOpenCurrentQs.push({ ref: qDoc.ref, live: await tx.get(qDoc.ref) });
+    }
+
+    for (const { ref, live } of liveOpenCurrentQs) {
+      if (live.exists() && live.data().status === "open") {
+        tx.update(ref, { status: "closed", ends_at: null });
       }
     }
 
     tx.update(roundRef, { status: "ended", ends_at: null });
     tx.update(sessionRef, { current_question_id: null });
-    return true;
+    return isRoundTransitionAuto(s);
   });
+
+  if (shouldAdvanceRound) {
+    return nextRound(code);
+  }
+  return true;
 }
 
 /* ── resetSessionRun ──────────────────────────────────── */

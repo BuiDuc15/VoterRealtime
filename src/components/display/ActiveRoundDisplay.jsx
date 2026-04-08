@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRoundAggregatedVotes } from "../../hooks/useRoundAggregatedVotes";
 
-export default function ActiveRoundDisplay({ code, round, teams, currentQuestion }) {
+export default function ActiveRoundDisplay({ code, round, teams, currentQuestion, enableRoundCheer = true }) {
   const { teamTotals, totalVotes, questions } = useRoundAggregatedVotes(code, round.id);
 
   const sortedTeams = useMemo(
@@ -27,14 +27,14 @@ export default function ActiveRoundDisplay({ code, round, teams, currentQuestion
 
   useEffect(() => {
     const prev = prevRoundStatusRef.current;
-    if (round.status === "ended" && prev !== "ended") {
+    if (enableRoundCheer && round.status === "ended" && prev !== "ended") {
       setShowEndRoundOverlay(true);
     }
-    if (round.status !== "ended") {
+    if (!enableRoundCheer || round.status !== "ended") {
       setShowEndRoundOverlay(false);
     }
     prevRoundStatusRef.current = round.status;
-  }, [round.status, round.id]);
+  }, [round.status, round.id, enableRoundCheer]);
 
   const winnerNames = winners.map((w) => w.name).join(" & ");
 
@@ -68,25 +68,6 @@ export default function ActiveRoundDisplay({ code, round, teams, currentQuestion
           </motion.div>
         </div>
       ) : null}
-
-      {/* Round title */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="text-center"
-      >
-        <h2 className="text-3xl font-extrabold text-slate-900 sm:text-5xl">{round.name}</h2>
-        <p className="mt-2 text-base text-slate-500 sm:text-xl">
-          {isRoundEnded ? "Vòng này đã kết thúc" : "Đang diễn ra..."}
-        </p>
-        {winners.length > 0 ? (
-          <p className="mt-3 text-xl font-bold text-violet-700 sm:text-2xl">
-            🏆 {winners.map((w) => w.name).join(" & ")}
-            {winners.length > 1 ? " — Hòa điểm!" : " — Dẫn đầu!"}
-          </p>
-        ) : null}
-      </motion.div>
 
       {/* Current question */}
       {currentQuestion && currentQuestion.status === "open" ? (

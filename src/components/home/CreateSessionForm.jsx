@@ -43,6 +43,8 @@ export default function CreateSessionForm() {
         name: name.trim(),
         admin_password: btoa(password),
         status: "waiting",
+        round_transition_mode: "manual",
+        display_report_mode: "current_round",
         teams,
         show_round_label: false,
         group_results_by_round: true,
@@ -79,7 +81,12 @@ export default function CreateSessionForm() {
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTeam())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTeam();
+              }
+            }}
             className="h-10 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-violet-500 focus:outline-none sm:h-11"
             placeholder="Tên đội"
           />
