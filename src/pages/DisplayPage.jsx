@@ -4,12 +4,14 @@ import { QRCodeSVG } from "qrcode.react";
 import DisplayWaiting from "../components/display/DisplayWaiting";
 import ActiveRoundDisplay from "../components/display/ActiveRoundDisplay";
 import RoundSummaryCard from "../components/display/RoundSummaryCard";
+import EndSessionCelebration from "../components/display/EndSessionCelebration";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { useCurrentQuestion } from "../hooks/useCurrentQuestion";
 import { useAutoNextQuestion } from "../hooks/useAutoNextQuestion";
 import { useRounds } from "../hooks/useRounds";
 import { useSession } from "../hooks/useSession";
 import { useOnlineCount } from "../hooks/useOnlinePresence";
+import { useRoundAggregatedVotes } from "../hooks/useRoundAggregatedVotes";
 import { useBackgroundMusic } from "../hooks/useBackgroundMusic";
 import { endCurrentRound, endSession, nextQuestion } from "../utils/sessionFlow";
 import { getRemainingSeconds } from "../utils/timerHelpers";
@@ -100,6 +102,29 @@ function SmallRoundCountdown({ endsAt, onExpire }) {
   );
 }
 
+function RoundSummaryCollector({ code, round, teams, onSummary }) {
+  const { teamTotals, totalVotes } = useRoundAggregatedVotes(code, round.id);
+
+  useEffect(() => {
+    const orderedTeams = [...(teams || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const winnerVotes = Math.max(0, ...orderedTeams.map((team) => teamTotals[team.id] || 0));
+    const winners = orderedTeams.filter((team) => (teamTotals[team.id] || 0) === winnerVotes && winnerVotes > 0);
+    const winnerPercent = totalVotes > 0 ? Math.round((winnerVotes / totalVotes) * 100) : 0;
+
+    onSummary?.(round.id, {
+      roundId: round.id,
+      roundName: round.name,
+      roundOrder: round.order || 0,
+      winners,
+      winnerVotes,
+      winnerPercent,
+      totalVotes,
+    });
+  }, [code, onSummary, round.id, round.name, round.order, teamTotals, teams, totalVotes]);
+
+  return null;
+}
+
 export default function DisplayPage() {
   const { code } = useParams();
   const { session, loading } = useSession(code);
@@ -107,6 +132,8 @@ export default function DisplayPage() {
   const onlineCount = useOnlineCount(code);
   const currentQuestion = useCurrentQuestion(code, session);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [showEndedDetails, setShowEndedDetails] = useState(false);
+  const [endedRoundSummaryMap, setEndedRoundSummaryMap] = useState({});
   const roundExpireFiredRef = useRef(new Set());
   const sessionExpireFiredRef = useRef(new Set());
 
@@ -120,6 +147,8 @@ export default function DisplayPage() {
 
   const isContinuousVoterMode = (session?.voter_progress_mode || "round_gated") === "continuous";
   const isAutoRoundTransition = (session?.round_transition_mode || "manual") === "auto";
+  const showDisplayDetails = (session?.display_detail_visibility || "show") === "show";
+  const detailDefaultExpanded = (session?.display_detail_default_expanded || "collapsed") === "expanded";
   const configuredReportMode = session?.display_report_mode || "current_round";
   const effectiveReportMode = (isAutoRoundTransition || isContinuousVoterMode) ? "cumulative" : configuredReportMode;
   const enableRoundCheer = !isAutoRoundTransition && !isContinuousVoterMode && effectiveReportMode === "current_round";
@@ -132,6 +161,28 @@ export default function DisplayPage() {
     const currentOrder = currentRound.order || 0;
     return ordered.filter((r) => (r.order || 0) <= currentOrder);
   }, [rounds, currentRound, effectiveReportMode, isContinuousVoterMode]);
+
+  useEffect(() => {
+    if (session?.status !== "ended") {
+      setShowEndedDetails(false);
+      setEndedRoundSummaryMap({});
+    }
+  }, [session?.status]);
+
+  const handleEndedRoundSummary = useCallback((roundId, summary) => {
+    setEndedRoundSummaryMap((prev) => {
+      const current = prev[roundId];
+      if (
+        current
+        && current.totalVotes === summary.totalVotes
+        && current.winnerVotes === summary.winnerVotes
+        && current.winnerPercent === summary.winnerPercent
+      ) {
+        return prev;
+      }
+      return { ...prev, [roundId]: summary };
+    });
+  }, []);
 
   useAutoNextQuestion({
     currentQuestion,
@@ -232,11 +283,41 @@ export default function DisplayPage() {
 
   // ─── ENDED state — show all round results ───
   if (session.status === "ended") {
-    const endedRounds = [...rounds]
-      .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .filter((r) => r.status === "ended" || r.status === "active");
+    const endedRounds = [...rounds].sort((a, b) => (a.order || 0) - (b.order || 0));
+    const endedRoundSummaries = endedRounds
+      .map((round) => endedRoundSummaryMap[round.id])
+      .filter(Boolean)
+      .sort((a, b) => (a.roundOrder || 0) - (b.roundOrder || 0));
+
+    const sessionTotal = endedRoundSummaries.reduce((acc, item) => acc + (item.totalVotes || 0), 0);
+    const teamSummaryMap = new Map();
+    endedRoundSummaries.forEach((item) => {
+      (item.winners || []).forEach((winner) => {
+        if (!teamSummaryMap.has(winner.id)) {
+          teamSummaryMap.set(winner.id, { ...winner, total: 0 });
+        }
+        teamSummaryMap.get(winner.id).total += item.winnerVotes || 0;
+      });
+    });
+    const summaryTeams = [...teamSummaryMap.values()];
+    const leaderVotes = Math.max(0, ...summaryTeams.map((team) => team.total || 0));
+    const leaders = summaryTeams
+      .filter((team) => (team.total || 0) === leaderVotes && leaderVotes > 0)
+      .map(({ total, ...team }) => team);
+    const leaderPercent = sessionTotal > 0 ? Math.round((leaderVotes / sessionTotal) * 100) : 0;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 text-white">
+        {endedRounds.map((round) => (
+          <RoundSummaryCollector
+            key={`collect_${round.id}`}
+            code={code}
+            round={round}
+            teams={round.teams || session.teams || []}
+            onSummary={handleEndedRoundSummary}
+          />
+        ))}
+
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/30 px-5 py-3 backdrop-blur-sm sm:px-7">
           <div>
@@ -250,34 +331,61 @@ export default function DisplayPage() {
         </div>
 
         {/* Title banner */}
-        <div className="py-8 px-4 text-center sm:py-12">
+        <div className="py-6 px-4 text-center sm:py-8">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-violet-300">Kết thúc sự kiện</p>
-          <h1 className="mt-2 text-3xl font-black text-white sm:text-5xl">{session.name}</h1>
-          <p className="mt-2 text-base text-white/60">Cảm ơn tất cả đã tham gia bình chọn! 🎉</p>
+          <h1 className="mt-2 text-2xl font-black text-white sm:text-4xl">{session.name}</h1>
+          <p className="mt-1 text-sm text-white/60 sm:text-base">Cảm ơn tất cả đã tham gia bình chọn! 🎉</p>
         </div>
 
-        {/* All rounds results */}
-        {endedRounds.length > 0 ? (
-          <div className="mx-auto max-w-4xl space-y-4 px-4 pb-12">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/40 text-center mb-6">
-              🏆 Kết quả các vòng bình chọn
-            </p>
-            {endedRounds.map((round) => (
-              <RoundSummaryCard
-                key={round.id}
-                code={code}
-                round={round}
-                teams={round.teams || session.teams || []}
-                isCurrentRound={false}
-                showRoundName={true}
-              />
-            ))}
+        {!showEndedDetails ? (
+          <EndSessionCelebration
+            sessionName={session.name}
+            summary={{
+              sessionTotal,
+              leaderVotes,
+              leaderPercent,
+              leaders,
+            }}
+            roundSummaries={endedRoundSummaries}
+            onShowDetails={() => setShowEndedDetails(true)}
+          />
+        ) : null}
+
+        {showEndedDetails ? (
+          <div className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/60">Chi tiết kết quả theo round</p>
+              <button
+                type="button"
+                onClick={() => setShowEndedDetails(false)}
+                className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Quay lại công bố
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {endedRounds.map((round) => (
+                <RoundSummaryCard
+                  key={round.id}
+                  code={code}
+                  round={round}
+                  teams={round.teams || session.teams || []}
+                  isCurrentRound={false}
+                  showRoundName={true}
+                  showDetails={showDisplayDetails}
+                  allowToggle={showDisplayDetails}
+                  defaultExpanded={detailDefaultExpanded}
+                  variant="grid"
+                />
+              ))}
+            </div>
+            {endedRounds.length === 0 ? (
+              <div className="mx-auto max-w-xl px-4 py-8 text-center">
+                <p className="text-white/50 text-base">Chưa có dữ liệu bình chọn</p>
+              </div>
+            ) : null}
           </div>
-        ) : (
-          <div className="mx-auto max-w-xl px-4 pb-12 text-center">
-            <p className="text-white/50 text-base">Chưa có dữ liệu bình chọn</p>
-          </div>
-        )}
+        ) : null}
         <ScanQrPanel />
       </div>
     );
@@ -330,6 +438,7 @@ export default function DisplayPage() {
             teams={currentRound.teams || session.teams}
             currentQuestion={currentQuestion}
             enableRoundCheer={enableRoundCheer}
+            showDetails={showDisplayDetails}
           />
         ) : !isContinuousVoterMode ? (
           <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -355,6 +464,9 @@ export default function DisplayPage() {
                   teams={round.teams || session.teams || []}
                   isCurrentRound={!isContinuousVoterMode && round.id === currentRound?.id}
                   showRoundName={true}
+                  showDetails={showDisplayDetails}
+                  allowToggle={showDisplayDetails}
+                  defaultExpanded={detailDefaultExpanded}
                 />
               ))}
             </div>

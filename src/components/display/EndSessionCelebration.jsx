@@ -3,15 +3,19 @@ import { motion } from "framer-motion";
 export default function EndSessionCelebration({
   sessionName,
   summary,
+  roundSummaries = [],
   onShowDetails,
 }) {
   const hasVotes = (summary?.sessionTotal || 0) > 0;
   const leaders = summary?.leaders || [];
   const isTie = leaders.length > 1;
 
+  const orderedRoundSummaries = [...roundSummaries]
+    .sort((a, b) => (a.roundOrder || 0) - (b.roundOrder || 0));
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
-      <div className="relative flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-700 text-white">
+      <div className="relative flex min-h-screen items-center justify-center px-4 py-4 sm:px-6 sm:py-6">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -left-20 top-10 h-56 w-56 rounded-full bg-white/15 blur-2xl" />
           <div className="absolute -right-24 bottom-8 h-64 w-64 rounded-full bg-cyan-300/20 blur-2xl" />
@@ -21,18 +25,18 @@ export default function EndSessionCelebration({
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="relative w-full max-w-4xl rounded-3xl border border-white/25 bg-white/12 p-6 shadow-2xl backdrop-blur-md sm:p-10"
+          className="relative w-full max-w-6xl rounded-3xl border border-white/25 bg-black/20 p-5 shadow-2xl backdrop-blur-md sm:p-7"
         >
-          <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-white/80 sm:text-sm">
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80 sm:text-xs">
             Kết thúc phiên
           </p>
           <h1 className="mt-2 text-center text-2xl font-black leading-tight sm:text-4xl">
-            Chúc mừng đội chiến thắng! 🏆
+            Công bố đội thắng theo từng round 🏆
           </h1>
-          <p className="mt-2 text-center text-sm text-white/80 sm:text-base">{sessionName}</p>
+          <p className="mt-1 text-center text-sm text-white/80 sm:text-base">{sessionName}</p>
 
           {hasVotes && leaders.length > 0 ? (
-            <div className="mt-8 space-y-5">
+            <div className="mt-6 space-y-4">
               <div className="text-center">
                 <p className="text-sm font-semibold text-white/80">
                   {isTie ? "Đồng hạng nhất 🤝" : "Quán quân 👑"}
@@ -53,15 +57,15 @@ export default function EndSessionCelebration({
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
+                <div className="rounded-2xl border border-white/25 bg-white/10 p-3 text-center sm:p-4">
                   <p className="text-xs uppercase tracking-wider text-white/70">Tổng phiếu</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.sessionTotal}</p>
                 </div>
-                <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
+                <div className="rounded-2xl border border-white/25 bg-white/10 p-3 text-center sm:p-4">
                   <p className="text-xs uppercase tracking-wider text-white/70">Phiếu dẫn đầu</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.leaderVotes}</p>
                 </div>
-                <div className="rounded-2xl border border-white/25 bg-white/10 p-4 text-center">
+                <div className="rounded-2xl border border-white/25 bg-white/10 p-3 text-center sm:p-4">
                   <p className="text-xs uppercase tracking-wider text-white/70">Tỷ lệ</p>
                   <p className="mt-1 text-3xl font-black tabular-nums">{summary.leaderPercent}%</p>
                 </div>
@@ -74,11 +78,34 @@ export default function EndSessionCelebration({
             </div>
           )}
 
-          <div className="mt-8 flex justify-center">
+          {orderedRoundSummaries.length > 0 ? (
+            <div className="mt-5">
+              <p className="mb-2 text-center text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">
+                Kết quả tóm tắt theo round
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {orderedRoundSummaries.map((item) => {
+                  const isRoundTie = (item.winners?.length || 0) > 1;
+                  const winnerName = item.winners?.length ? item.winners.map((team) => team.name).join(" & ") : "Chưa có dữ liệu";
+                  return (
+                    <div key={item.roundId} className="rounded-xl border border-white/20 bg-white/10 p-3">
+                      <p className="truncate text-xs font-bold text-white/85">{item.roundName}</p>
+                      <p className="mt-1 line-clamp-2 text-sm font-black text-white">{winnerName}</p>
+                      <p className="mt-1 text-[11px] text-white/80">
+                        {isRoundTie ? "Đồng hạng" : "Thắng round"} · {item.winnerVotes || 0} phiếu ({item.winnerPercent || 0}%)
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex justify-center">
             <button
               type="button"
               onClick={onShowDetails}
-              className="rounded-2xl bg-white px-6 py-3 text-sm font-bold text-indigo-700 shadow-lg transition hover:shadow-xl sm:text-base"
+              className="rounded-xl bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-indigo-700 shadow-lg transition hover:shadow-xl sm:text-sm"
             >
               Xem chi tiết kết quả
             </button>

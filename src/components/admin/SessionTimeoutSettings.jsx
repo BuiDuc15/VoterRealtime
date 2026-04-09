@@ -34,6 +34,8 @@ export default function SessionTimeoutSettings({ code, session }) {
   const [voterProgressMode, setVoterProgressMode] = useState("round_gated");
   const [roundTransitionMode, setRoundTransitionMode] = useState("manual");
   const [displayReportMode, setDisplayReportMode] = useState("current_round");
+  const [displayDetailVisibility, setDisplayDetailVisibility] = useState("show");
+  const [displayDetailDefaultExpanded, setDisplayDetailDefaultExpanded] = useState("collapsed");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -48,7 +50,18 @@ export default function SessionTimeoutSettings({ code, session }) {
     setVoterProgressMode(session?.voter_progress_mode || "round_gated");
     setRoundTransitionMode(session?.round_transition_mode || "manual");
     setDisplayReportMode(session?.display_report_mode || "current_round");
-  }, [session?.session_duration, session?.default_question_duration, session?.default_round_duration, session?.voter_progress_mode, session?.round_transition_mode, session?.display_report_mode]);
+    setDisplayDetailVisibility(session?.display_detail_visibility || "show");
+    setDisplayDetailDefaultExpanded(session?.display_detail_default_expanded || "collapsed");
+  }, [
+    session?.session_duration,
+    session?.default_question_duration,
+    session?.default_round_duration,
+    session?.voter_progress_mode,
+    session?.round_transition_mode,
+    session?.display_report_mode,
+    session?.display_detail_visibility,
+    session?.display_detail_default_expanded,
+  ]);
 
   async function handleSave() {
     setSaving(true);
@@ -61,6 +74,8 @@ export default function SessionTimeoutSettings({ code, session }) {
         voter_progress_mode: voterProgressMode,
         round_transition_mode: roundTransitionMode,
         display_report_mode: displayReportMode,
+        display_detail_visibility: displayDetailVisibility,
+        display_detail_default_expanded: displayDetailDefaultExpanded,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -75,7 +90,9 @@ export default function SessionTimeoutSettings({ code, session }) {
     parsedRoundTimeout !== (session?.default_round_duration || null) ||
     voterProgressMode !== (session?.voter_progress_mode || "round_gated") ||
     roundTransitionMode !== (session?.round_transition_mode || "manual") ||
-    displayReportMode !== (session?.display_report_mode || "current_round");
+    displayReportMode !== (session?.display_report_mode || "current_round") ||
+    displayDetailVisibility !== (session?.display_detail_visibility || "show") ||
+    displayDetailDefaultExpanded !== (session?.display_detail_default_expanded || "collapsed");
 
   return (
     <div className="space-y-4 rounded-xl border bg-white p-3 sm:p-4">
@@ -254,6 +271,57 @@ export default function SessionTimeoutSettings({ code, session }) {
         <p className="text-xs text-slate-500">
           Nếu session đang ở mode tự chuyển round, display sẽ luôn hiển thị đầy đủ báo cáo và không hiện màn cheer.
         </p>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="text-sm font-medium text-gray-700">Chi tiết trên màn hình display</label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setDisplayDetailVisibility("show")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayDetailVisibility === "show" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Hiện chi tiết
+          </button>
+          <button
+            type="button"
+            onClick={() => setDisplayDetailVisibility("hide")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayDetailVisibility === "hide" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Ẩn chi tiết
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          Ẩn chi tiết sẽ chỉ giữ phần tóm tắt theo round/team, không hiển thị breakdown câu hỏi.
+        </p>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="text-sm font-medium text-gray-700">Mặc định khi mở màn chi tiết kết quả</label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setDisplayDetailDefaultExpanded("collapsed")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayDetailDefaultExpanded === "collapsed" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Thu gọn thẻ round
+          </button>
+          <button
+            type="button"
+            onClick={() => setDisplayDetailDefaultExpanded("expanded")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayDetailDefaultExpanded === "expanded" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Mở sẵn chi tiết
+          </button>
+        </div>
       </div>
 
       <button

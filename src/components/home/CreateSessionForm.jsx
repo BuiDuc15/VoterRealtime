@@ -46,6 +46,8 @@ export default function CreateSessionForm() {
         voter_progress_mode: "round_gated",
         round_transition_mode: "manual",
         display_report_mode: "current_round",
+        display_detail_visibility: "show",
+        display_detail_default_expanded: "collapsed",
         teams,
         show_round_label: false,
         group_results_by_round: true,
