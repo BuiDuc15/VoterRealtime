@@ -66,12 +66,13 @@ export default function EndSessionCelebration({
     .sort((a, b) => (a.roundOrder || 0) - (b.roundOrder || 0));
 
   return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-br from-sky-100/95 via-indigo-100/95 to-fuchsia-100/95 text-slate-900 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-amber-50 via-white to-sky-100 text-slate-900">
       <div className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 sm:py-8">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
-          <div className="absolute left-1/2 top-[20%] h-72 w-72 -translate-x-1/2 rounded-full bg-cyan-300/30 blur-3xl" />
-          <div className="absolute left-[10%] top-[70%] h-56 w-56 rounded-full bg-violet-300/25 blur-3xl" />
-          <div className="absolute right-[8%] top-[32%] h-64 w-64 rounded-full bg-amber-200/35 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-100">
+          <div className="absolute left-1/2 top-[20%] h-80 w-80 -translate-x-1/2 rounded-full bg-cyan-200/50 blur-3xl" />
+          <div className="absolute left-[8%] top-[72%] h-64 w-64 rounded-full bg-violet-200/45 blur-3xl" />
+          <div className="absolute right-[6%] top-[30%] h-72 w-72 rounded-full bg-amber-200/60 blur-3xl" />
+          <div className="absolute left-1/3 top-[42%] h-56 w-56 rounded-full bg-white/70 blur-3xl" />
           {FIREWORK_SPECS.map((item) => (
             <FireworkBurst key={`${item.x}_${item.y}`} x={item.x} y={item.y} color={item.color} delay={item.delay} />
           ))}
@@ -81,7 +82,7 @@ export default function EndSessionCelebration({
           initial={{ opacity: 0, y: 16, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="relative w-full max-w-[96vw] rounded-3xl border border-white/80 bg-white/90 p-6 shadow-2xl sm:p-8"
+          className="relative w-full max-w-[96vw] rounded-3xl border border-indigo-100 bg-white p-6 shadow-[0_20px_80px_rgba(79,70,229,0.25)] sm:p-8"
         >
           <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600/80 sm:text-sm">
             Kết thúc phiên
