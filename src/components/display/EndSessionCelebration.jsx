@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 
 const FIREWORK_SPECS = [
@@ -56,6 +57,7 @@ export default function EndSessionCelebration({
   roundSummaries = [],
   onShowDetails,
 }) {
+  const [showOverallSummary, setShowOverallSummary] = useState(true);
   const hasVotes = (summary?.sessionTotal || 0) > 0;
   const leaders = summary?.leaders || [];
   const isTie = leaders.length > 1;
@@ -64,12 +66,12 @@ export default function EndSessionCelebration({
     .sort((a, b) => (a.roundOrder || 0) - (b.roundOrder || 0));
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/55 text-white backdrop-blur-md">
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-sky-100/95 via-indigo-100/95 to-fuchsia-100/95 text-slate-900 backdrop-blur-md">
       <div className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 sm:py-8">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-80">
-          <div className="absolute left-1/2 top-[18%] h-72 w-72 -translate-x-1/2 rounded-full bg-emerald-400/20 blur-3xl" />
-          <div className="absolute left-[12%] top-[65%] h-56 w-56 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="absolute right-[8%] top-[35%] h-64 w-64 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
+          <div className="absolute left-1/2 top-[20%] h-72 w-72 -translate-x-1/2 rounded-full bg-cyan-300/30 blur-3xl" />
+          <div className="absolute left-[10%] top-[70%] h-56 w-56 rounded-full bg-violet-300/25 blur-3xl" />
+          <div className="absolute right-[8%] top-[32%] h-64 w-64 rounded-full bg-amber-200/35 blur-3xl" />
           {FIREWORK_SPECS.map((item) => (
             <FireworkBurst key={`${item.x}_${item.y}`} x={item.x} y={item.y} color={item.color} delay={item.delay} />
           ))}
@@ -79,61 +81,88 @@ export default function EndSessionCelebration({
           initial={{ opacity: 0, y: 16, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.35, ease: "easeOut" }}
-          className="relative w-full max-w-[96vw] rounded-3xl border border-white/15 bg-slate-900/70 p-6 shadow-2xl sm:p-8"
+          className="relative w-full max-w-[96vw] rounded-3xl border border-white/80 bg-white/90 p-6 shadow-2xl sm:p-8"
         >
-          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65 sm:text-xs">
-            K?t th�c session
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600/80 sm:text-sm">
+            Kết thúc phiên
           </p>
-          <h1 className="mt-2 text-center text-2xl font-black leading-tight sm:text-4xl">
-            B?ng c�ng b? k?t qu? round
+          <h1 className="mt-2 text-center text-2xl font-black leading-tight text-indigo-900 sm:text-4xl">
+            Công bố đội thắng theo từng round 🏆
           </h1>
-          <p className="mt-1 text-center text-sm text-white/70 sm:text-base">{sessionName}</p>
+          <p className="mt-1 text-center text-sm text-slate-600 sm:text-base">{sessionName}</p>
 
-          {hasVotes && leaders.length > 0 ? (
-            <div className="mt-7">
-              <div className="rounded-2xl border border-emerald-200/25 bg-emerald-400/10 px-5 py-5 text-center sm:px-7">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100/85 sm:text-sm">
-                  {isTie ? "�?ng h?ng chung cu?c" : "�?i th?ng chung cu?c"}
-                </p>
-                <div className="mt-2 flex flex-wrap justify-center gap-2.5 sm:gap-3">
-                  {leaders.map((team) => (
-                    <span
-                      key={team.id}
-                      className="inline-flex items-center rounded-full px-4 py-2 text-xl font-black text-slate-900 shadow-lg sm:text-2xl"
-                      style={{ backgroundColor: team.color }}
-                    >
-                      {team.name}
-                    </span>
-                  ))}
+          <div className="mt-5 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setShowOverallSummary((prev) => !prev)}
+              className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-indigo-700 transition hover:bg-indigo-100 sm:text-sm"
+            >
+              {showOverallSummary ? "Ẩn kết quả chung cuộc" : "Hiện kết quả chung cuộc"}
+            </button>
+          </div>
+
+          {showOverallSummary ? (
+            hasVotes && leaders.length > 0 ? (
+              <div className="mt-6 space-y-4">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-5 text-center sm:px-7">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 sm:text-sm">
+                    {isTie ? "Đồng hạng chung cuộc" : "Đội thắng chung cuộc"}
+                  </p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2.5 sm:gap-3">
+                    {leaders.map((team) => (
+                      <span
+                        key={team.id}
+                        className="inline-flex items-center rounded-full px-4 py-2 text-xl font-black text-slate-900 shadow-sm sm:text-2xl"
+                        style={{ backgroundColor: team.color }}
+                      >
+                        {team.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-indigo-100 bg-white p-3 text-center sm:p-4">
+                    <p className="text-xs uppercase tracking-wider text-slate-500">Tổng phiếu</p>
+                    <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{summary?.sessionTotal || 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white p-3 text-center sm:p-4">
+                    <p className="text-xs uppercase tracking-wider text-slate-500">Phiếu dẫn đầu</p>
+                    <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{summary?.leaderVotes || 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white p-3 text-center sm:p-4">
+                    <p className="text-xs uppercase tracking-wider text-slate-500">Tỷ lệ</p>
+                    <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">{summary?.leaderPercent || 0}%</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="mt-6 rounded-2xl border border-white/20 bg-white/5 p-5 text-center">
-              <p className="text-lg font-bold">Chua c� d? li?u b�nh ch?n</p>
-            </div>
-          )}
+            ) : (
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 text-center">
+                <p className="text-lg font-bold text-slate-700">Chưa có dữ liệu bình chọn</p>
+              </div>
+            )
+          ) : null}
 
           {orderedRoundSummaries.length > 0 ? (
-            <div className="mt-7">
-              <p className="mb-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-white/60 sm:text-sm">
-                K?t qu? t?ng round
+            <div className="mt-6">
+              <p className="mb-4 text-center text-xs font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-sm">
+                Kết quả theo từng round
               </p>
               <div className="space-y-4">
                 {orderedRoundSummaries.map((item) => {
                   const isRoundTie = (item.winners?.length || 0) > 1;
                   const winnerName = item.winners?.length
                     ? item.winners.map((team) => team.name).join(" & ")
-                    : "Chua c� d? li?u";
+                    : "Chưa có dữ liệu";
 
                   return (
-                    <div key={item.roundId} className="rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-4 sm:px-6 sm:py-5">
+                    <div key={item.roundId} className="rounded-2xl border border-indigo-100 bg-white px-5 py-4 sm:px-6 sm:py-5">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                        <p className="text-base font-semibold text-white/80 sm:text-lg">{item.roundName}</p>
-                        <p className="text-xl font-black text-white sm:text-2xl">{winnerName}</p>
+                        <p className="text-base font-semibold text-slate-700 sm:text-lg">{item.roundName}</p>
+                        <p className="text-xl font-black text-indigo-900 sm:text-2xl">{winnerName}</p>
                       </div>
-                      <p className="mt-2 text-sm text-white/70 sm:text-base">
-                        {isRoundTie ? "�?ng h?ng" : "Th?ng round"} ({item.winnerVotes || 0} phi?u, {item.winnerPercent || 0}%)
+                      <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                        {isRoundTie ? "Đồng hạng" : "Thắng round"} ({item.winnerVotes || 0} phiếu, {item.winnerPercent || 0}%)
                       </p>
                     </div>
                   );
@@ -146,9 +175,9 @@ export default function EndSessionCelebration({
             <button
               type="button"
               onClick={onShowDetails}
-              className="rounded-xl border border-white/30 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-lg transition hover:shadow-xl sm:text-sm"
+              className="rounded-xl border border-indigo-200 bg-indigo-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-indigo-500 hover:shadow-xl sm:text-sm"
             >
-              Xem chi ti?t
+              Xem chi tiết
             </button>
           </div>
         </motion.div>
