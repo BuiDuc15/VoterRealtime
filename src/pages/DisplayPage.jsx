@@ -352,18 +352,18 @@ export default function DisplayPage() {
         ) : null}
 
         {showEndedDetails ? (
-          <div className="mx-auto w-full max-w-7xl px-4 pb-12 sm:px-6">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-white/60">Chi tiết kết quả theo round</p>
+          <div className="mx-auto w-full max-w-[96vw] px-3 pb-14 sm:px-4">
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <p className="text-sm font-bold uppercase tracking-widest text-white/70">Chi tiết kết quả theo round</p>
               <button
                 type="button"
                 onClick={() => setShowEndedDetails(false)}
-                className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
+                className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white"
               >
                 Quay lại công bố
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
               {endedRounds.map((round) => (
                 <RoundSummaryCard
                   key={round.id}
@@ -372,9 +372,9 @@ export default function DisplayPage() {
                   teams={round.teams || session.teams || []}
                   isCurrentRound={false}
                   showRoundName={true}
-                  showDetails={showDisplayDetails}
-                  allowToggle={showDisplayDetails}
-                  defaultExpanded={detailDefaultExpanded}
+                  showDetails={true}
+                  allowToggle={true}
+                  defaultExpanded={true}
                   variant="grid"
                 />
               ))}
@@ -478,3 +478,4 @@ export default function DisplayPage() {
     </div>
   );
 }
+
