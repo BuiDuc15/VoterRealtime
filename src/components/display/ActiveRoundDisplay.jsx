@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, LayoutGroup } from "framer-motion";
 import { useRoundAggregatedVotes } from "../../hooks/useRoundAggregatedVotes";
 
 export default function ActiveRoundDisplay({
@@ -14,22 +14,33 @@ export default function ActiveRoundDisplay({
 }) {
   const { teamTotals, totalVotes, questions } = useRoundAggregatedVotes(code, round.id);
 
+  /* Sort teams by vote count descending for the animated ranking */
+  const rankedTeams = useMemo(
+    () =>
+      [...teams]
+        .map((t) => ({ ...t, votes: teamTotals[t.id] || 0 }))
+        .sort((a, b) => b.votes - a.votes || (a.order || 0) - (b.order || 0)),
+    [teams, teamTotals],
+  );
+
+  /* Keep original order for breakdowns */
   const sortedTeams = useMemo(
     () => [...teams].sort((a, b) => (a.order || 0) - (b.order || 0)),
     [teams],
   );
+
   const maxVotes = useMemo(
-    () => Math.max(1, ...sortedTeams.map((t) => teamTotals[t.id] || 0)),
-    [sortedTeams, teamTotals],
+    () => Math.max(1, ...rankedTeams.map((t) => t.votes)),
+    [rankedTeams],
   );
   const winnerVotes = useMemo(
-    () => Math.max(0, ...sortedTeams.map((t) => teamTotals[t.id] || 0)),
-    [sortedTeams, teamTotals],
+    () => Math.max(0, ...rankedTeams.map((t) => t.votes)),
+    [rankedTeams],
   );
 
   const isRoundEnded = round.status === "ended";
   const winners = isRoundEnded
-    ? sortedTeams.filter((t) => (teamTotals[t.id] || 0) === winnerVotes && winnerVotes > 0)
+    ? rankedTeams.filter((t) => t.votes === winnerVotes && winnerVotes > 0)
     : [];
   const [showEndRoundOverlay, setShowEndRoundOverlay] = useState(false);
   const prevRoundStatusRef = useRef(round.status);
@@ -95,7 +106,7 @@ export default function ActiveRoundDisplay({
         </motion.div>
       ) : null}
 
-      {/* Team vote bars — main display */}
+      {/* Team vote bars — main display with animated ranking */}
       {showTeamSummary ? (
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -120,47 +131,70 @@ export default function ActiveRoundDisplay({
             </div>
           </div>
 
-          <div className="space-y-5">
-            {sortedTeams.map((team) => {
-              const votes = teamTotals[team.id] || 0;
-              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-              const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
-              const isWinner = isRoundEnded && votes === winnerVotes && votes > 0;
-              const dimmed = isRoundEnded && !isWinner && winnerVotes > 0;
+          <LayoutGroup>
+            <div className="space-y-5">
+              {rankedTeams.map((team, index) => {
+                const votes = team.votes;
+                const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
+                const isWinner = isRoundEnded && votes === winnerVotes && votes > 0;
+                const dimmed = isRoundEnded && !isWinner && winnerVotes > 0;
+                const rank = index + 1;
 
-              return (
-                <div key={team.id} className={dimmed ? "opacity-50" : ""}>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="h-4 w-4 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: team.color }} />
-                      <span className={`text-xl truncate ${isWinner ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
-                        {team.name}
-                      </span>
-                      {isWinner ? <span className="text-xl">👑</span> : null}
+                return (
+                  <motion.div
+                    key={team.id}
+                    layout
+                    transition={{
+                      layout: { type: "spring", stiffness: 300, damping: 30, duration: 0.5 },
+                    }}
+                    className={dimmed ? "opacity-50" : ""}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black tabular-nums ${
+                            rank === 1 && votes > 0
+                              ? "bg-amber-100 text-amber-700 ring-2 ring-amber-300"
+                              : rank === 2 && votes > 0
+                                ? "bg-slate-100 text-slate-600 ring-2 ring-slate-300"
+                                : rank === 3 && votes > 0
+                                  ? "bg-orange-50 text-orange-600 ring-2 ring-orange-200"
+                                  : "bg-slate-50 text-slate-400"
+                          }`}
+                        >
+                          {rank}
+                        </span>
+                        <span className="h-4 w-4 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: team.color }} />
+                        <span className={`text-xl truncate ${isWinner ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
+                          {team.name}
+                        </span>
+                        {isWinner ? <span className="text-xl">👑</span> : null}
+                      </div>
+                      <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
+                        <span className={`text-3xl font-extrabold sm:text-4xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
+                          {votes}
+                        </span>
+                        <span className="text-base text-slate-500 font-medium">phiếu</span>
+                        <span className={`text-base font-bold ${isWinner ? "text-violet-700" : "text-slate-500"}`}>
+                          ({pct}%)
+                        </span>
+                      </div>
                     </div>
-                    <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
-                      <span className={`text-3xl font-extrabold sm:text-4xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
-                        {votes}
-                      </span>
-                      <span className="text-base text-slate-500 font-medium">phiếu</span>
-                      <span className={`text-base font-bold ${isWinner ? "text-violet-700" : "text-slate-500"}`}>
-                        ({pct}%)
-                      </span>
+                    <div className="h-6 overflow-hidden rounded-full bg-slate-100 sm:h-7">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: team.color }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barW}%` }}
+                        transition={{ duration: 0.9, ease: "easeOut" }}
+                      />
                     </div>
-                  </div>
-                  <div className="h-6 overflow-hidden rounded-full bg-slate-100 sm:h-7">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: team.color }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${barW}%` }}
-                      transition={{ duration: 0.9, ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </LayoutGroup>
 
           {totalVotes === 0 ? (
             <p className="mt-5 text-center text-lg text-slate-500">Chưa có phiếu bầu nào...</p>
