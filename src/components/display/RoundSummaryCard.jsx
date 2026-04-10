@@ -60,8 +60,9 @@ export default function RoundSummaryCard({
   const winnerLabel = winners.length
     ? winners.map((team) => team.name).join(" & ")
     : "Chưa có dữ liệu";
+  const isGridVariant = variant === "grid";
   const containerClass = variant === "grid"
-    ? "h-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+    ? "h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
     : `rounded-2xl border p-5 shadow-sm sm:p-6 transition-all ${
       isCurrentRound
         ? "border-violet-300 bg-violet-50/60 ring-2 ring-violet-200/60 shadow-violet-100"
@@ -75,21 +76,21 @@ export default function RoundSummaryCard({
       transition={{ duration: 0.4 }}
       className={containerClass}
     >
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <h3 className="text-lg font-bold text-slate-800 sm:text-xl truncate">{showRoundName ? round.name : "Kết quả bình chọn"}</h3>
+            <h3 className={`font-bold text-slate-800 truncate ${isGridVariant ? "text-base sm:text-lg" : "text-lg sm:text-xl"}`}>{showRoundName ? round.name : "Kết quả bình chọn"}</h3>
             <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusInfo.cls}`}>
               {statusInfo.label}
             </span>
           </div>
-          <p className="mt-1.5 text-sm font-semibold text-violet-600 truncate sm:text-base">
+          <p className={`mt-1.5 font-semibold text-violet-600 truncate ${isGridVariant ? "text-xs sm:text-sm" : "text-sm sm:text-base"}`}>
             🏆 {winnerLabel}
             {winners.length > 0 ? ` - ${winnerVotes} phiếu (${winnerPercent}%)` : ""}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="block text-2xl font-bold text-slate-800 tabular-nums sm:text-3xl">{totalVotes}</span>
+          <span className={`block font-bold text-slate-800 tabular-nums ${isGridVariant ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"}`}>{totalVotes}</span>
           <span className="text-xs text-slate-400 uppercase tracking-wide">phiếu</span>
         </div>
       </div>
@@ -108,7 +109,7 @@ export default function RoundSummaryCard({
       {showExpandedBody ? (
         <>
           {hasTeamSummary ? (
-            <div className="space-y-5">
+            <div className={isGridVariant ? "space-y-4" : "space-y-5"}>
               {sortedTeams.map((team) => {
                 const votes = teamTotals[team.id] || 0;
                 const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
@@ -121,13 +122,13 @@ export default function RoundSummaryCard({
                     <div className="mb-2.5 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
-                        <span className={`text-base truncate ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} sm:text-lg`}>
+                        <span className={`truncate ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} ${isGridVariant ? "text-sm sm:text-base" : "text-base sm:text-lg"}`}>
                           {team.name}
                         </span>
                         {isWinner ? <span className="text-sm">👑</span> : null}
                       </div>
                       <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
-                        <span className={`text-xl font-bold sm:text-2xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
+                        <span className={`font-bold ${isWinner ? "text-slate-900" : "text-slate-700"} ${isGridVariant ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`}>
                           {votes}
                         </span>
                         <span className="text-sm text-slate-400 font-medium">phiếu</span>
@@ -136,7 +137,7 @@ export default function RoundSummaryCard({
                         </span>
                       </div>
                     </div>
-                    <div className="h-4 overflow-hidden rounded-full bg-slate-100 sm:h-5">
+                    <div className={`overflow-hidden rounded-full bg-slate-100 ${isGridVariant ? "h-3.5 sm:h-4" : "h-4 sm:h-5"}`}>
                       <motion.div
                         className="h-full rounded-full"
                         style={{ backgroundColor: team.color }}

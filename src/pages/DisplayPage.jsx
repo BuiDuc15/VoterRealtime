@@ -173,6 +173,12 @@ export default function DisplayPage() {
     return ordered.filter((r) => (r.order || 0) <= currentOrder);
   }, [rounds, currentRound, effectiveReportMode, isContinuousVoterMode]);
 
+  const reportGridStyle = useMemo(() => {
+    const count = Math.max(1, reportRounds.length);
+    const minCardWidth = count === 1 ? 920 : count === 2 ? 500 : count <= 4 ? 360 : 300;
+    return { gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${minCardWidth}px), 1fr))` };
+  }, [reportRounds.length]);
+
   useEffect(() => {
     if (session?.status === "ended") {
       setShowEndedDetails(false);
@@ -473,7 +479,7 @@ export default function DisplayPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Báo cáo tổng hợp theo round</p>
               </div>
             )}
-            <div className="space-y-3">
+            <div className="grid gap-3" style={reportGridStyle}>
               {reportRounds.map((round) => (
                 <RoundSummaryCard
                   key={round.id}
@@ -487,6 +493,7 @@ export default function DisplayPage() {
                   showQuestionBreakdown={showQuestionBreakdownDetails}
                   allowToggle={showDisplayDetails}
                   defaultExpanded={detailDefaultExpanded}
+                  variant="grid"
                 />
               ))}
             </div>
