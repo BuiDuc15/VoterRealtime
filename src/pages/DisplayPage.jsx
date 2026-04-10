@@ -473,13 +473,13 @@ export default function DisplayPage() {
 
         {/* Cumulative reports */}
         {(effectiveReportMode === "cumulative" || isContinuousVoterMode) && reportRounds.length > 0 ? (
-          <div className="mx-auto mt-5 w-full max-w-5xl space-y-3">
+          <div className="mx-auto mt-5 w-full max-w-[96vw] space-y-3">
             {isContinuousVoterMode ? null : (
               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Báo cáo tổng hợp theo round</p>
               </div>
             )}
-            <div className="grid gap-3" style={reportGridStyle}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {reportRounds.map((round) => (
                 <RoundSummaryCard
                   key={round.id}

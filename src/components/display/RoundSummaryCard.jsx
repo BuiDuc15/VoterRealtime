@@ -76,20 +76,20 @@ export default function RoundSummaryCard({
       transition={{ duration: 0.4 }}
       className={containerClass}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className={`mb-4 gap-3 ${isGridVariant ? "flex flex-col sm:flex-row sm:items-start sm:justify-between" : "flex items-center justify-between"}`}>
         <div className="min-w-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <h3 className={`font-bold text-slate-800 truncate ${isGridVariant ? "text-base sm:text-lg" : "text-lg sm:text-xl"}`}>{showRoundName ? round.name : "Kết quả bình chọn"}</h3>
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <h3 className={`font-bold leading-tight text-slate-800 whitespace-normal break-words ${isGridVariant ? "text-base sm:text-lg" : "text-lg sm:text-xl"}`}>{showRoundName ? round.name : "Kết quả bình chọn"}</h3>
             <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusInfo.cls}`}>
               {statusInfo.label}
             </span>
           </div>
-          <p className={`mt-1.5 font-semibold text-violet-600 truncate ${isGridVariant ? "text-xs sm:text-sm" : "text-sm sm:text-base"}`}>
+          <p className={`mt-1.5 font-semibold text-violet-600 whitespace-normal break-words ${isGridVariant ? "text-xs sm:text-sm" : "text-sm sm:text-base"}`}>
             🏆 {winnerLabel}
             {winners.length > 0 ? ` - ${winnerVotes} phiếu (${winnerPercent}%)` : ""}
           </p>
         </div>
-        <div className="text-right shrink-0">
+        <div className={`text-right shrink-0 ${isGridVariant ? "sm:pt-0.5" : ""}`}>
           <span className={`block font-bold text-slate-800 tabular-nums ${isGridVariant ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"}`}>{totalVotes}</span>
           <span className="text-xs text-slate-400 uppercase tracking-wide">phiếu</span>
         </div>
@@ -119,15 +119,15 @@ export default function RoundSummaryCard({
 
                 return (
                   <div key={team.id} className={dimmed ? "opacity-50" : ""}>
-                    <div className="mb-2.5 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
+                    <div className={`mb-2.5 gap-3 ${isGridVariant ? "flex flex-col sm:flex-row sm:items-center sm:justify-between" : "flex items-center justify-between"}`}>
+                      <div className="flex min-w-0 items-center gap-2">
                         <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
-                        <span className={`truncate ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} ${isGridVariant ? "text-sm sm:text-base" : "text-base sm:text-lg"}`}>
+                        <span className={`whitespace-normal break-words ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} ${isGridVariant ? "text-sm sm:text-base" : "text-base sm:text-lg"}`}>
                           {team.name}
                         </span>
                         {isWinner ? <span className="text-sm">👑</span> : null}
                       </div>
-                      <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
+                      <div className="flex shrink-0 flex-wrap items-baseline justify-end gap-1.5 tabular-nums sm:gap-2">
                         <span className={`font-bold ${isWinner ? "text-slate-900" : "text-slate-700"} ${isGridVariant ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`}>
                           {votes}
                         </span>
@@ -161,7 +161,7 @@ export default function RoundSummaryCard({
                   return (
                     <div key={q.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
                       <div className="mb-2.5 flex items-center justify-between gap-3">
-                        <p className="truncate text-base font-semibold text-slate-700">{q.text || "Câu hỏi"}</p>
+                        <p className="text-base font-semibold text-slate-700 whitespace-normal break-words">{q.text || "Câu hỏi"}</p>
                         <span className="shrink-0 text-sm font-medium text-slate-500 tabular-nums">{questionTotal} phiếu</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -191,4 +191,3 @@ export default function RoundSummaryCard({
     </motion.div>
   );
 }
-
