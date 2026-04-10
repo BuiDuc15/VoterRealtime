@@ -4,6 +4,7 @@ import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../firebase";
 import { generateUniqueCode } from "../../utils/sessionCode";
+import { DEFAULT_DISPLAY_DETAIL_SECTIONS } from "../../utils/displayDetailSections";
 
 const TEAM_COLORS = ["#1D9E75", "#534AB7", "#D85A30", "#1A7FBD", "#B8860B", "#C2185B", "#2E7D32", "#6D4C41"];
 
@@ -47,6 +48,7 @@ export default function CreateSessionForm() {
         round_transition_mode: "manual",
         display_report_mode: "current_round",
         display_detail_visibility: "show",
+        display_detail_sections: DEFAULT_DISPLAY_DETAIL_SECTIONS,
         display_detail_default_expanded: "collapsed",
         display_end_session_overall_visibility: "show",
         teams,

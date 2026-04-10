@@ -9,6 +9,8 @@ export default function ActiveRoundDisplay({
   currentQuestion,
   enableRoundCheer = true,
   showDetails = true,
+  showTeamSummary = true,
+  showQuestionBreakdown = true,
 }) {
   const { teamTotals, totalVotes, questions } = useRoundAggregatedVotes(code, round.id);
 
@@ -94,78 +96,80 @@ export default function ActiveRoundDisplay({
       ) : null}
 
       {/* Team vote bars — main display */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className={`rounded-3xl border-2 p-6 shadow-md sm:p-8 ${
-          isRoundEnded
-            ? "border-violet-300 bg-gradient-to-br from-violet-50 to-indigo-50 shadow-violet-100"
-            : "border-slate-200 bg-white shadow-slate-100"
-        }`}
-      >
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p className="mb-1 text-sm font-bold uppercase tracking-widest text-slate-500">
-              {isRoundEnded ? "🏆 Kết quả vòng" : "📊 Kết quả realtime"}
-            </p>
-            <h3 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{round.name}</h3>
+      {showTeamSummary ? (
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className={`rounded-3xl border-2 p-6 shadow-md sm:p-8 ${
+            isRoundEnded
+              ? "border-violet-300 bg-gradient-to-br from-violet-50 to-indigo-50 shadow-violet-100"
+              : "border-slate-200 bg-white shadow-slate-100"
+          }`}
+        >
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <p className="mb-1 text-sm font-bold uppercase tracking-widest text-slate-500">
+                {isRoundEnded ? "🏆 Kết quả vòng" : "📊 Kết quả realtime"}
+              </p>
+              <h3 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{round.name}</h3>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="block text-5xl font-black text-slate-900 tabular-nums sm:text-6xl">{totalVotes}</span>
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-500">tổng phiếu</span>
+            </div>
           </div>
-          <div className="text-right shrink-0">
-            <span className="block text-5xl font-black text-slate-900 tabular-nums sm:text-6xl">{totalVotes}</span>
-            <span className="text-sm font-semibold uppercase tracking-wide text-slate-500">tổng phiếu</span>
-          </div>
-        </div>
 
-        <div className="space-y-5">
-          {sortedTeams.map((team) => {
-            const votes = teamTotals[team.id] || 0;
-            const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-            const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
-            const isWinner = isRoundEnded && votes === winnerVotes && votes > 0;
-            const dimmed = isRoundEnded && !isWinner && winnerVotes > 0;
+          <div className="space-y-5">
+            {sortedTeams.map((team) => {
+              const votes = teamTotals[team.id] || 0;
+              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+              const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
+              const isWinner = isRoundEnded && votes === winnerVotes && votes > 0;
+              const dimmed = isRoundEnded && !isWinner && winnerVotes > 0;
 
-            return (
-              <div key={team.id} className={dimmed ? "opacity-50" : ""}>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="h-4 w-4 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: team.color }} />
-                    <span className={`text-xl truncate ${isWinner ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
-                      {team.name}
-                    </span>
-                    {isWinner ? <span className="text-xl">👑</span> : null}
+              return (
+                <div key={team.id} className={dimmed ? "opacity-50" : ""}>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="h-4 w-4 shrink-0 rounded-full shadow-sm" style={{ backgroundColor: team.color }} />
+                      <span className={`text-xl truncate ${isWinner ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
+                        {team.name}
+                      </span>
+                      {isWinner ? <span className="text-xl">👑</span> : null}
+                    </div>
+                    <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
+                      <span className={`text-3xl font-extrabold sm:text-4xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
+                        {votes}
+                      </span>
+                      <span className="text-base text-slate-500 font-medium">phiếu</span>
+                      <span className={`text-base font-bold ${isWinner ? "text-violet-700" : "text-slate-500"}`}>
+                        ({pct}%)
+                      </span>
+                    </div>
                   </div>
-                  <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
-                    <span className={`text-3xl font-extrabold sm:text-4xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
-                      {votes}
-                    </span>
-                    <span className="text-base text-slate-500 font-medium">phiếu</span>
-                    <span className={`text-base font-bold ${isWinner ? "text-violet-700" : "text-slate-500"}`}>
-                      ({pct}%)
-                    </span>
+                  <div className="h-6 overflow-hidden rounded-full bg-slate-100 sm:h-7">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: team.color }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${barW}%` }}
+                      transition={{ duration: 0.9, ease: "easeOut" }}
+                    />
                   </div>
                 </div>
-                <div className="h-6 overflow-hidden rounded-full bg-slate-100 sm:h-7">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: team.color }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${barW}%` }}
-                    transition={{ duration: 0.9, ease: "easeOut" }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        {totalVotes === 0 ? (
-          <p className="mt-5 text-center text-lg text-slate-500">Chưa có phiếu bầu nào...</p>
-        ) : null}
-      </motion.div>
+          {totalVotes === 0 ? (
+            <p className="mt-5 text-center text-lg text-slate-500">Chưa có phiếu bầu nào...</p>
+          ) : null}
+        </motion.div>
+      ) : null}
 
       {/* Per-question breakdown */}
-      {showDetails && questions.length > 0 ? (
+      {showDetails && showQuestionBreakdown && questions.length > 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <p className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">Chi tiết theo câu hỏi</p>
           <div className="space-y-3">

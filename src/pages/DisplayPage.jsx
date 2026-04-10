@@ -15,6 +15,10 @@ import { useRoundAggregatedVotes } from "../hooks/useRoundAggregatedVotes";
 import { useBackgroundMusic } from "../hooks/useBackgroundMusic";
 import { endCurrentRound, endSession, nextQuestion } from "../utils/sessionFlow";
 import { getRemainingSeconds } from "../utils/timerHelpers";
+import {
+  DISPLAY_DETAIL_SECTION_KEYS,
+  normalizeDisplayDetailSections,
+} from "../utils/displayDetailSections";
 
 /* ── Hero Countdown ──────────────────────────────────── */
 function HeroCountdown({ endsAt, label = "Thời gian còn lại", onExpire }) {
@@ -147,7 +151,13 @@ export default function DisplayPage() {
 
   const isContinuousVoterMode = (session?.voter_progress_mode || "round_gated") === "continuous";
   const isAutoRoundTransition = (session?.round_transition_mode || "manual") === "auto";
-  const showDisplayDetails = (session?.display_detail_visibility || "show") === "show";
+  const displayDetailSections = useMemo(
+    () => normalizeDisplayDetailSections(session),
+    [session?.display_detail_sections, session?.display_detail_visibility],
+  );
+  const showDisplayDetails = displayDetailSections.length > 0;
+  const showTeamSummaryDetails = displayDetailSections.includes(DISPLAY_DETAIL_SECTION_KEYS.TEAM_SUMMARY);
+  const showQuestionBreakdownDetails = displayDetailSections.includes(DISPLAY_DETAIL_SECTION_KEYS.QUESTION_BREAKDOWN);
   const detailDefaultExpanded = (session?.display_detail_default_expanded || "collapsed") === "expanded";
   const endSessionOverallVisibility = session?.display_end_session_overall_visibility || "show";
   const configuredReportMode = session?.display_report_mode || "current_round";
@@ -310,7 +320,7 @@ export default function DisplayPage() {
     const leaderPercent = sessionTotal > 0 ? Math.round((leaderVotes / sessionTotal) * 100) : 0;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 text-white">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50/60 text-slate-800">
         {endedRounds.map((round) => (
           <RoundSummaryCollector
             key={`collect_${round.id}`}
@@ -322,22 +332,22 @@ export default function DisplayPage() {
         ))}
 
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/30 px-5 py-3 backdrop-blur-sm sm:px-7">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-3 backdrop-blur-sm sm:px-7">
           <div>
-            <p className="text-base font-bold text-white sm:text-lg">{session.name}</p>
-            <p className="font-mono text-xs text-white/40">{code?.toUpperCase()}</p>
+            <p className="text-base font-bold text-slate-900 sm:text-lg">{session.name}</p>
+            <p className="font-mono text-xs text-slate-400">{code?.toUpperCase()}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-white/50">{onlineCount} online</span>
-            <button onClick={onMusicButtonClick} className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80">{musicButtonText}</button>
+            <span className="text-xs text-slate-500">{onlineCount} online</span>
+            <button onClick={onMusicButtonClick} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">{musicButtonText}</button>
           </div>
         </div>
 
         {/* Title banner */}
         <div className="py-6 px-4 text-center sm:py-8">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-violet-300">Kết thúc sự kiện</p>
-          <h1 className="mt-2 text-2xl font-black text-white sm:text-4xl">{session.name}</h1>
-          <p className="mt-1 text-sm text-white/60 sm:text-base">Cảm ơn tất cả đã tham gia bình chọn! 🎉</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-500">Kết thúc sự kiện</p>
+          <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-4xl">{session.name}</h1>
+          <p className="mt-1 text-sm text-slate-600 sm:text-base">Cảm ơn tất cả đã tham gia bình chọn! 🎉</p>
         </div>
 
         {!showEndedDetails ? (
@@ -351,18 +361,18 @@ export default function DisplayPage() {
             }}
             roundSummaries={endedRoundSummaries}
             overallSummaryVisibility={endSessionOverallVisibility}
-            onShowDetails={() => setShowEndedDetails(true)}
+            onShowDetails={showDisplayDetails ? () => setShowEndedDetails(true) : undefined}
           />
         ) : null}
 
         {showEndedDetails ? (
           <div className="mx-auto w-full max-w-[96vw] px-3 pb-14 sm:px-4">
             <div className="mb-6 flex items-center justify-between gap-3">
-              <p className="text-sm font-bold uppercase tracking-widest text-white/70">Chi tiết kết quả theo round</p>
+              <p className="text-sm font-bold uppercase tracking-widest text-slate-600">Chi tiết kết quả theo round</p>
               <button
                 type="button"
                 onClick={() => setShowEndedDetails(false)}
-                className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white"
+                className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700"
               >
                 Quay lại công bố
               </button>
@@ -376,8 +386,10 @@ export default function DisplayPage() {
                   teams={round.teams || session.teams || []}
                   isCurrentRound={false}
                   showRoundName={true}
-                  showDetails={true}
-                  allowToggle={true}
+                  showDetails={showDisplayDetails}
+                  showTeamSummary={showTeamSummaryDetails}
+                  showQuestionBreakdown={showQuestionBreakdownDetails}
+                  allowToggle={showDisplayDetails}
                   defaultExpanded={true}
                   variant="grid"
                 />
@@ -385,7 +397,7 @@ export default function DisplayPage() {
             </div>
             {endedRounds.length === 0 ? (
               <div className="mx-auto max-w-xl px-4 py-8 text-center">
-                <p className="text-white/50 text-base">Chưa có dữ liệu bình chọn</p>
+                <p className="text-slate-500 text-base">Chưa có dữ liệu bình chọn</p>
               </div>
             ) : null}
           </div>
@@ -443,6 +455,8 @@ export default function DisplayPage() {
             currentQuestion={currentQuestion}
             enableRoundCheer={enableRoundCheer}
             showDetails={showDisplayDetails}
+            showTeamSummary={showTeamSummaryDetails}
+            showQuestionBreakdown={showQuestionBreakdownDetails}
           />
         ) : !isContinuousVoterMode ? (
           <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -469,6 +483,8 @@ export default function DisplayPage() {
                   isCurrentRound={!isContinuousVoterMode && round.id === currentRound?.id}
                   showRoundName={true}
                   showDetails={showDisplayDetails}
+                  showTeamSummary={showTeamSummaryDetails}
+                  showQuestionBreakdown={showQuestionBreakdownDetails}
                   allowToggle={showDisplayDetails}
                   defaultExpanded={detailDefaultExpanded}
                 />

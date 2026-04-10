@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase";
+import {
+  DISPLAY_DETAIL_SECTION_OPTIONS,
+  normalizeDisplayDetailSections,
+} from "../../utils/displayDetailSections";
 
 function parseDuration(value) {
   if (value === "" || value == null) return null;
@@ -34,7 +38,7 @@ export default function SessionTimeoutSettings({ code, session }) {
   const [voterProgressMode, setVoterProgressMode] = useState("round_gated");
   const [roundTransitionMode, setRoundTransitionMode] = useState("manual");
   const [displayReportMode, setDisplayReportMode] = useState("current_round");
-  const [displayDetailVisibility, setDisplayDetailVisibility] = useState("show");
+  const [displayDetailSections, setDisplayDetailSections] = useState([]);
   const [displayDetailDefaultExpanded, setDisplayDetailDefaultExpanded] = useState("collapsed");
   const [displayEndSessionOverallVisibility, setDisplayEndSessionOverallVisibility] = useState("show");
   const [saving, setSaving] = useState(false);
@@ -51,7 +55,7 @@ export default function SessionTimeoutSettings({ code, session }) {
     setVoterProgressMode(session?.voter_progress_mode || "round_gated");
     setRoundTransitionMode(session?.round_transition_mode || "manual");
     setDisplayReportMode(session?.display_report_mode || "current_round");
-    setDisplayDetailVisibility(session?.display_detail_visibility || "show");
+    setDisplayDetailSections(normalizeDisplayDetailSections(session));
     setDisplayDetailDefaultExpanded(session?.display_detail_default_expanded || "collapsed");
     setDisplayEndSessionOverallVisibility(session?.display_end_session_overall_visibility || "show");
   }, [
@@ -61,10 +65,29 @@ export default function SessionTimeoutSettings({ code, session }) {
     session?.voter_progress_mode,
     session?.round_transition_mode,
     session?.display_report_mode,
+    session?.display_detail_sections,
     session?.display_detail_visibility,
     session?.display_detail_default_expanded,
     session?.display_end_session_overall_visibility,
   ]);
+
+  const normalizedSessionDetailSections = useMemo(
+    () => normalizeDisplayDetailSections(session),
+    [session?.display_detail_sections, session?.display_detail_visibility],
+  );
+
+  const selectedDetailSectionSet = useMemo(
+    () => new Set(displayDetailSections),
+    [displayDetailSections],
+  );
+
+  function toggleDetailSection(sectionKey) {
+    setDisplayDetailSections((prev) => (
+      prev.includes(sectionKey)
+        ? prev.filter((key) => key !== sectionKey)
+        : [...prev, sectionKey]
+    ));
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -77,7 +100,8 @@ export default function SessionTimeoutSettings({ code, session }) {
         voter_progress_mode: voterProgressMode,
         round_transition_mode: roundTransitionMode,
         display_report_mode: displayReportMode,
-        display_detail_visibility: displayDetailVisibility,
+        display_detail_sections: displayDetailSections,
+        display_detail_visibility: displayDetailSections.length > 0 ? "show" : "hide",
         display_detail_default_expanded: displayDetailDefaultExpanded,
         display_end_session_overall_visibility: displayEndSessionOverallVisibility,
       });
@@ -95,7 +119,7 @@ export default function SessionTimeoutSettings({ code, session }) {
     voterProgressMode !== (session?.voter_progress_mode || "round_gated") ||
     roundTransitionMode !== (session?.round_transition_mode || "manual") ||
     displayReportMode !== (session?.display_report_mode || "current_round") ||
-    displayDetailVisibility !== (session?.display_detail_visibility || "show") ||
+    displayDetailSections.join("|") !== normalizedSessionDetailSections.join("|") ||
     displayDetailDefaultExpanded !== (session?.display_detail_default_expanded || "collapsed") ||
     displayEndSessionOverallVisibility !== (session?.display_end_session_overall_visibility || "show");
 
@@ -281,27 +305,37 @@ export default function SessionTimeoutSettings({ code, session }) {
       <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <label className="text-sm font-medium text-gray-700">Chi tiết trên màn hình display</label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setDisplayDetailVisibility("show")}
-            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
-              displayDetailVisibility === "show" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
-            }`}
-          >
-            Hiện chi tiết
-          </button>
-          <button
-            type="button"
-            onClick={() => setDisplayDetailVisibility("hide")}
-            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
-              displayDetailVisibility === "hide" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
-            }`}
-          >
-            Ẩn chi tiết
-          </button>
+          {DISPLAY_DETAIL_SECTION_OPTIONS.map((option) => {
+            const selected = selectedDetailSectionSet.has(option.key);
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => toggleDetailSection(option.key)}
+                className={`rounded-xl border px-3 py-3 text-left text-sm transition ${
+                  selected
+                    ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                    : "bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{option.label}</p>
+                    <p className={`mt-1 text-xs ${selected ? "text-white/80" : "text-slate-500"}`}>{option.description}</p>
+                  </div>
+                  <span className={`mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold ${
+                    selected ? "bg-white text-slate-900" : "bg-slate-100 text-slate-500"
+                  }`}
+                  >
+                    {selected ? "✓" : "+"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
         <p className="text-xs text-slate-500">
-          Ẩn chi tiết sẽ chỉ giữ phần tóm tắt theo round/team, không hiển thị breakdown câu hỏi.
+          Chọn nhiều mục. Display sẽ chỉ hiện đúng các phần bạn tick. Nếu bỏ chọn hết, display chỉ giữ phần tiêu đề / công bố cơ bản.
         </p>
       </div>
 

@@ -181,15 +181,17 @@ export default function EndSessionCelebration({
             </div>
           ) : null}
 
-          <div className="mt-5 flex justify-center">
-            <button
-              type="button"
-              onClick={onShowDetails}
-              className="rounded-xl border border-indigo-200 bg-indigo-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-indigo-500 hover:shadow-xl sm:text-sm"
-            >
-              Xem chi tiết
-            </button>
-          </div>
+          {onShowDetails ? (
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={onShowDetails}
+                className="rounded-xl border border-indigo-200 bg-indigo-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-lg transition hover:bg-indigo-500 hover:shadow-xl sm:text-sm"
+              >
+                Xem chi tiết
+              </button>
+            </div>
+          ) : null}
         </motion.div>
       </div>
     </div>

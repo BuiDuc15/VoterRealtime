@@ -16,6 +16,8 @@ export default function RoundSummaryCard({
   onData,
   showRoundName = true,
   showDetails = true,
+  showTeamSummary = true,
+  showQuestionBreakdown = true,
   allowToggle = false,
   defaultExpanded = true,
   variant = "list",
@@ -51,7 +53,9 @@ export default function RoundSummaryCard({
   );
   const winnerPercent = totalVotes > 0 ? Math.round((winnerVotes / totalVotes) * 100) : 0;
 
-  const canShowDetails = showDetails && sortedTeams.length > 0;
+  const hasTeamSummary = showDetails && showTeamSummary && sortedTeams.length > 0;
+  const hasQuestionBreakdown = showDetails && showQuestionBreakdown && sortedTeams.length > 0 && questions.length > 0;
+  const canShowDetails = hasTeamSummary || hasQuestionBreakdown;
   const showExpandedBody = canShowDetails && (!allowToggle || expanded);
   const winnerLabel = winners.length
     ? winners.map((team) => team.name).join(" & ")
@@ -103,50 +107,52 @@ export default function RoundSummaryCard({
 
       {showExpandedBody ? (
         <>
-          <div className="space-y-5">
-            {sortedTeams.map((team) => {
-              const votes = teamTotals[team.id] || 0;
-              const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-              const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
-              const isWinner = votes === winnerVotes && votes > 0;
-              const dimmed = winners.length > 0 && !isWinner;
+          {hasTeamSummary ? (
+            <div className="space-y-5">
+              {sortedTeams.map((team) => {
+                const votes = teamTotals[team.id] || 0;
+                const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                const barW = totalVotes > 0 ? (votes / maxVotes) * 100 : 0;
+                const isWinner = votes === winnerVotes && votes > 0;
+                const dimmed = winners.length > 0 && !isWinner;
 
-              return (
-                <div key={team.id} className={dimmed ? "opacity-50" : ""}>
-                  <div className="mb-2.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
-                      <span className={`text-base truncate ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} sm:text-lg`}>
-                        {team.name}
-                      </span>
-                      {isWinner ? <span className="text-sm">👑</span> : null}
+                return (
+                  <div key={team.id} className={dimmed ? "opacity-50" : ""}>
+                    <div className="mb-2.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
+                        <span className={`text-base truncate ${isWinner ? "font-bold text-slate-900" : "font-medium text-slate-700"} sm:text-lg`}>
+                          {team.name}
+                        </span>
+                        {isWinner ? <span className="text-sm">👑</span> : null}
+                      </div>
+                      <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
+                        <span className={`text-xl font-bold sm:text-2xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
+                          {votes}
+                        </span>
+                        <span className="text-sm text-slate-400 font-medium">phiếu</span>
+                        <span className={`text-sm font-semibold ${isWinner ? "text-violet-600" : "text-slate-500"}`}>
+                          ({pct}%)
+                        </span>
+                      </div>
                     </div>
-                    <div className="shrink-0 flex items-baseline gap-2 tabular-nums">
-                      <span className={`text-xl font-bold sm:text-2xl ${isWinner ? "text-slate-900" : "text-slate-700"}`}>
-                        {votes}
-                      </span>
-                      <span className="text-sm text-slate-400 font-medium">phiếu</span>
-                      <span className={`text-sm font-semibold ${isWinner ? "text-violet-600" : "text-slate-500"}`}>
-                        ({pct}%)
-                      </span>
+                    <div className="h-4 overflow-hidden rounded-full bg-slate-100 sm:h-5">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: team.color }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barW}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                      />
                     </div>
                   </div>
-                  <div className="h-4 overflow-hidden rounded-full bg-slate-100 sm:h-5">
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ backgroundColor: team.color }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${barW}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : null}
 
-          {questions.length > 0 ? (
-            <div className="mt-5 border-t border-slate-100 pt-5">
+          {hasQuestionBreakdown ? (
+            <div className={`${hasTeamSummary ? "mt-5 border-t border-slate-100 pt-5" : ""}`}>
               <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Chi tiết theo câu hỏi</p>
               <div className="space-y-3.5">
                 {questions.map((q) => {
