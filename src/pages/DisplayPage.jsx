@@ -149,6 +149,7 @@ export default function DisplayPage() {
   const isAutoRoundTransition = (session?.round_transition_mode || "manual") === "auto";
   const showDisplayDetails = (session?.display_detail_visibility || "show") === "show";
   const detailDefaultExpanded = (session?.display_detail_default_expanded || "collapsed") === "expanded";
+  const endSessionOverallVisibility = session?.display_end_session_overall_visibility || "show";
   const configuredReportMode = session?.display_report_mode || "current_round";
   const effectiveReportMode = (isAutoRoundTransition || isContinuousVoterMode) ? "cumulative" : configuredReportMode;
   const enableRoundCheer = !isAutoRoundTransition && !isContinuousVoterMode && effectiveReportMode === "current_round";
@@ -163,11 +164,13 @@ export default function DisplayPage() {
   }, [rounds, currentRound, effectiveReportMode, isContinuousVoterMode]);
 
   useEffect(() => {
-    if (session?.status !== "ended") {
+    if (session?.status === "ended") {
       setShowEndedDetails(false);
-      setEndedRoundSummaryMap({});
+      return;
     }
-  }, [session?.status]);
+    setShowEndedDetails(false);
+    setEndedRoundSummaryMap({});
+  }, [session?.status, session?.ended_at?.seconds, session?.session_version]);
 
   const handleEndedRoundSummary = useCallback((roundId, summary) => {
     setEndedRoundSummaryMap((prev) => {
@@ -208,7 +211,7 @@ export default function DisplayPage() {
     if (sessionExpireFiredRef.current.has(key)) return;
     sessionExpireFiredRef.current.add(key);
     try {
-      await endSession(code);
+      await endSession(code, "timer");
     } catch {
       sessionExpireFiredRef.current.delete(key);
     }
@@ -347,6 +350,7 @@ export default function DisplayPage() {
               leaders,
             }}
             roundSummaries={endedRoundSummaries}
+            overallSummaryVisibility={endSessionOverallVisibility}
             onShowDetails={() => setShowEndedDetails(true)}
           />
         ) : null}

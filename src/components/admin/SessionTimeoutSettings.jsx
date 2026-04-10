@@ -36,6 +36,7 @@ export default function SessionTimeoutSettings({ code, session }) {
   const [displayReportMode, setDisplayReportMode] = useState("current_round");
   const [displayDetailVisibility, setDisplayDetailVisibility] = useState("show");
   const [displayDetailDefaultExpanded, setDisplayDetailDefaultExpanded] = useState("collapsed");
+  const [displayEndSessionOverallVisibility, setDisplayEndSessionOverallVisibility] = useState("show");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -52,6 +53,7 @@ export default function SessionTimeoutSettings({ code, session }) {
     setDisplayReportMode(session?.display_report_mode || "current_round");
     setDisplayDetailVisibility(session?.display_detail_visibility || "show");
     setDisplayDetailDefaultExpanded(session?.display_detail_default_expanded || "collapsed");
+    setDisplayEndSessionOverallVisibility(session?.display_end_session_overall_visibility || "show");
   }, [
     session?.session_duration,
     session?.default_question_duration,
@@ -61,6 +63,7 @@ export default function SessionTimeoutSettings({ code, session }) {
     session?.display_report_mode,
     session?.display_detail_visibility,
     session?.display_detail_default_expanded,
+    session?.display_end_session_overall_visibility,
   ]);
 
   async function handleSave() {
@@ -76,6 +79,7 @@ export default function SessionTimeoutSettings({ code, session }) {
         display_report_mode: displayReportMode,
         display_detail_visibility: displayDetailVisibility,
         display_detail_default_expanded: displayDetailDefaultExpanded,
+        display_end_session_overall_visibility: displayEndSessionOverallVisibility,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -92,7 +96,8 @@ export default function SessionTimeoutSettings({ code, session }) {
     roundTransitionMode !== (session?.round_transition_mode || "manual") ||
     displayReportMode !== (session?.display_report_mode || "current_round") ||
     displayDetailVisibility !== (session?.display_detail_visibility || "show") ||
-    displayDetailDefaultExpanded !== (session?.display_detail_default_expanded || "collapsed");
+    displayDetailDefaultExpanded !== (session?.display_detail_default_expanded || "collapsed") ||
+    displayEndSessionOverallVisibility !== (session?.display_end_session_overall_visibility || "show");
 
   return (
     <div className="space-y-4 rounded-xl border bg-white p-3 sm:p-4">
@@ -322,6 +327,33 @@ export default function SessionTimeoutSettings({ code, session }) {
             Mở sẵn chi tiết
           </button>
         </div>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="text-sm font-medium text-gray-700">Màn công bố khi kết thúc session</label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setDisplayEndSessionOverallVisibility("show")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayEndSessionOverallVisibility === "show" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Hiện kết quả chung cuộc
+          </button>
+          <button
+            type="button"
+            onClick={() => setDisplayEndSessionOverallVisibility("hide")}
+            className={`h-10 rounded-lg border px-3 text-sm font-semibold ${
+              displayEndSessionOverallVisibility === "hide" ? "border-slate-900 bg-slate-900 text-white" : "bg-white text-slate-700"
+            }`}
+          >
+            Chỉ hiện kết quả từng round
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          Khi tắt kết quả chung cuộc, màn công bố vẫn hiển thị đầy đủ đội thắng theo từng round.
+        </p>
       </div>
 
       <button

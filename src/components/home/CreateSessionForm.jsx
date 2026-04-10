@@ -48,6 +48,7 @@ export default function CreateSessionForm() {
         display_report_mode: "current_round",
         display_detail_visibility: "show",
         display_detail_default_expanded: "collapsed",
+        display_end_session_overall_visibility: "show",
         teams,
         show_round_label: false,
         group_results_by_round: true,

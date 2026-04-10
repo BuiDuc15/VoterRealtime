@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, runTransaction, writeBatch } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 import { makeEndsAt } from "./timerHelpers";
 
@@ -107,6 +107,8 @@ export async function startSessionRun(code) {
       session_ends_at: sessionData.session_duration
         ? makeEndsAt(Number(sessionData.session_duration))
         : null,
+      ended_at: null,
+      end_reason: null,
     });
 
     if (startInContinuousMode) {
@@ -405,6 +407,8 @@ export async function resetSessionRun(code) {
     current_question_id: null,
     session_version: (session.session_version || 1) + 1,
     session_ends_at: null,
+    ended_at: null,
+    end_reason: null,
   });
 
   for (const roundDoc of orderedRounds) {
@@ -436,13 +440,13 @@ export async function resetSessionRun(code) {
  * - marks current round as ended
  * - sets session status = "ended"
  */
-export async function endSession(code) {
+export async function endSession(code, reason = "manual") {
   const sessionRef = doc(db, "sessions", code);
   const sessionSnap = await getDoc(sessionRef);
   if (!sessionSnap.exists()) return false;
 
   const session = sessionSnap.data();
-  if (session.status !== "active") return false;
+  if (session.status !== "active" && session.status !== "ended") return false;
 
   const currentRoundId = session.current_round_id;
   const roundRef = currentRoundId ? doc(db, "sessions", code, "rounds", currentRoundId) : null;
@@ -464,7 +468,7 @@ export async function endSession(code) {
 
     if (!liveSession.exists()) return false;
     const s = liveSession.data();
-    if (s.status !== "active") return false;
+    if (s.status !== "active" && s.status !== "ended") return false;
 
     // ALL writes after
     for (const { ref, live } of liveOpenQs) {
@@ -481,6 +485,8 @@ export async function endSession(code) {
       status: "ended",
       current_question_id: null,
       session_ends_at: null,
+      ended_at: serverTimestamp(),
+      end_reason: reason,
     });
 
     return true;

@@ -138,7 +138,7 @@ export default function AdminPage() {
           </div>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-1 sm:gap-2 lg:grid-cols-1">
             <button onClick={() => action(() => startSessionRun(code), "Không thể bắt đầu phiên")} disabled={session.status !== "waiting"} className="h-10 rounded-lg bg-emerald-600 text-xs font-semibold text-white disabled:bg-gray-300 sm:h-11 sm:text-sm">Bắt đầu</button>
-            <button onClick={() => action(() => endSession(code), "Lỗi")} disabled={session.status !== "active"} className="h-10 rounded-lg border border-red-300 text-xs font-semibold text-red-600 disabled:text-gray-400 sm:h-11 sm:text-sm">Kết thúc</button>
+            <button onClick={() => action(() => endSession(code, "manual"), "Lỗi")} disabled={session.status !== "active"} className="h-10 rounded-lg border border-red-300 text-xs font-semibold text-red-600 disabled:text-gray-400 sm:h-11 sm:text-sm">Kết thúc</button>
             <button onClick={() => action(() => resetSessionRun(code), "Lỗi")} disabled={session.status === "active"} className="h-10 rounded-lg border text-xs font-semibold text-blue-600 disabled:text-gray-400 sm:h-11 sm:text-sm">Phiên mới</button>
           </div>
           <button onClick={() => navigate("/")} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition sm:h-11 sm:text-sm">🏠 Tạo cuộc thi mới</button>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 const FIREWORK_SPECS = [
@@ -55,9 +55,16 @@ export default function EndSessionCelebration({
   sessionName,
   summary,
   roundSummaries = [],
+  overallSummaryVisibility = "show",
   onShowDetails,
 }) {
-  const [showOverallSummary, setShowOverallSummary] = useState(true);
+  const allowOverallSummary = overallSummaryVisibility !== "hide";
+  const [showOverallSummary, setShowOverallSummary] = useState(allowOverallSummary);
+
+  useEffect(() => {
+    setShowOverallSummary(allowOverallSummary);
+  }, [allowOverallSummary]);
+
   const hasVotes = (summary?.sessionTotal || 0) > 0;
   const leaders = summary?.leaders || [];
   const isTie = leaders.length > 1;
@@ -92,15 +99,17 @@ export default function EndSessionCelebration({
           </h1>
           <p className="mt-1 text-center text-sm text-slate-600 sm:text-base">{sessionName}</p>
 
-          <div className="mt-5 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setShowOverallSummary((prev) => !prev)}
-              className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-indigo-700 transition hover:bg-indigo-100 sm:text-sm"
-            >
-              {showOverallSummary ? "Ẩn kết quả chung cuộc" : "Hiện kết quả chung cuộc"}
-            </button>
-          </div>
+          {allowOverallSummary ? (
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowOverallSummary((prev) => !prev)}
+                className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-indigo-700 transition hover:bg-indigo-100 sm:text-sm"
+              >
+                {showOverallSummary ? "Ẩn kết quả chung cuộc" : "Hiện kết quả chung cuộc"}
+              </button>
+            </div>
+          ) : null}
 
           {showOverallSummary ? (
             hasVotes && leaders.length > 0 ? (
