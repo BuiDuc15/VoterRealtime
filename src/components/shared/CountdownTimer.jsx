@@ -8,7 +8,8 @@ export default function CountdownTimer({ endsAt, duration, onExpire, size = "nor
   const circumference = 2 * Math.PI * r;
   const progress = duration && remaining !== null ? remaining / duration : 1;
   const offset = circumference * (1 - progress);
-  const isUrgent = remaining !== null && remaining <= 10 && remaining > 0;
+  const isEnding = remaining !== null && remaining <= 10 && remaining > 0;
+  const isWarning = remaining !== null && remaining <= 30 && remaining > 10;
 
   useEffect(() => {
     if (!endsAt) return undefined;
@@ -34,7 +35,7 @@ export default function CountdownTimer({ endsAt, duration, onExpire, size = "nor
           cy={dim / 2}
           r={r}
           fill="none"
-          stroke={isUrgent ? "#F87171" : "#34D399"}
+          stroke={isEnding ? "#F87171" : isWarning ? "#FBBF24" : "#34D399"}
           strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -43,7 +44,7 @@ export default function CountdownTimer({ endsAt, duration, onExpire, size = "nor
         />
       </svg>
       <span
-        className={`absolute font-mono font-bold tabular-nums ${isUrgent ? "text-red-400 animate-pulse" : "text-white"} ${size === "large" ? "text-3xl" : "text-base"}`}
+        className={`absolute font-mono font-bold tabular-nums ${isEnding ? "text-red-400 animate-pulse" : "text-white"} ${size === "large" ? "text-3xl" : "text-base"}`}
       >
         {m}:{s}
       </span>
